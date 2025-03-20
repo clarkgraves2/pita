@@ -6,7 +6,6 @@
  
 #include <errno.h>
 #include <limits.h>
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -285,33 +284,32 @@ validate_m_opt(const char *arg, char **menu_path)
     return (char *)arg;
 }
 
-/**
- * Validate the log file path option
- */
-static FILE *
+static bool
 validate_l_opt(const char *arg, FILE **log_file)
 {
     if (NULL == log_file)
     {
         fprintf(stderr, "Error: Invalid parameter for log file\n");
-        return NULL;
+        return false;
     }
 
     if (NULL == arg)
     {
         *log_file = stderr;
-        return stderr;
+        return true;
     }
 
     FILE *temp_file = fopen(arg, "a+");
     if (NULL == temp_file)
     {
         fprintf(stderr, "Error: Cannot open or create log file at %s\n", arg);
-        return NULL;
+        return false;
     }
     
     *log_file = temp_file;
-    return temp_file;
+    fclose(temp_file);
+    temp_file = NULL;
+    return true;
 }
 
 /**
@@ -439,9 +437,6 @@ int validate_and_set_options(int argc, char *argv[], server_options_t *options)
     return SERVER_OPTIONS_SUCCESS;
 }
 
-/**
- * Clean up resources used by options
- */
 void cleanup_options(server_options_t *options)
 {
     if (NULL == options)

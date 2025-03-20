@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
+
 #include "server_options.h"
 
 int main(int argc, char *argv[])
