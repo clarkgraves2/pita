@@ -69,11 +69,28 @@ validate_p_opt(const char * arg, int * port_input);
 static char *
 validate_m_opt(const char *arg, char **menu_path);
 
-/**
- * @brief Parses, validates, and sets the -l parameter from getopt
- * to use as the log file path for the server's settings
- * @param arg
+/** 
+ * @param arg (from main)
  * @param log_file
+ * @retval [true | false] for sucessful or failed validation
+ * @brief
+ * Validates, and sets the '-l' parameter from getopt
+ * to use as the log file path for the server's settings
+ * 
+ * ### Process
+ * 
+ * 1. Checks that log_file pointer didn't fail when passing by reference
+ * 
+ * 2. If no value was provided after the option get_opt will set value 
+ * to NULL so that the default file in main will be used resulting in
+ * an wanted early exit.
+ * 
+ * 3. If fopen fails to open the provided file_path then that tells us that
+ * it was an invalid file_path or non-existent file.
+ * 
+ * 4. If the file_path is validated we set the log_file pointer to it to be
+ * used by the server for logging.
+ * 
  */
 static bool validate_l_opt(const char *arg, FILE **log_file);
 
