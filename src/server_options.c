@@ -18,6 +18,8 @@
 #define PORT_DEFAULT (8000)
 #define MENU_FILE_DEFAULT ("./menu.txt")
 #define LOG_FILE_DEFAULT (stderr)
+#define MIN_PORT_NUM (0)
+#define MAX_PORT_NUM (65535)
 
 #define PARAM_ERR (-1)
 #define TABLE_RANGE_ERR (-2)
@@ -203,23 +205,18 @@ validate_c_opt(const char * arg, int * closing_hour, int * opening_hour, int * o
     return (int)close_hr_value;
 }
 
-/**
- * Validate the port number option
- */
-static int
+static bool
 validate_p_opt(const char * arg, int * port_input)
 {
+    if(NULL == arg)
+    {
+        return true;
+    }
+
     if(NULL == port_input)
     {
         // log error
-        return PARAM_ERR;
-    }
-
-    if(NULL == arg)
-    {
-        // log default port set.
-        *port_input = PORT_DEFAULT;
-        return PORT_DEFAULT;
+        return false;
     }
 
     char * strtol_endptr;
@@ -229,26 +226,27 @@ validate_p_opt(const char * arg, int * port_input)
     if(ERANGE == errno)
     {
         // log error
-        printf("Error: Number out of range of strtol conversion.\n");
-        return STRTOL_CONV_ERR;
+        fprintf(stderr,"Error: Number out of range of strtol conversion.\n");
+        return false;
     }
 
-    if (*strtol_endptr != '\0') {
-        // log error
-        printf("Error: Invalid characters in port value\n");
-        return INVALID_CHAR_ERR;
-    }
-
-    if (port_num_value < 0 || port_num_value > 65535)
+    if ('\0' != *strtol_endptr) 
     {
         // log error
-        printf("Error: Invalid Port Number Must be between 0 and 65535\n");
-        return PORT_RANGE_ERR;
+        fprintf(stderr, "Error: Invalid characters in port value\n");
+        return false;
+    }
+
+    if (MIN_PORT_NUM > port_num_value || MAX_PORT_NUM < port_num_value)
+    {
+        // log error
+        fprintf(stderr, "Error: Invalid Port Number Must be between 0 and 65535\n");
+        return false;
     }
 
     // log port set
     *port_input = (int)port_num_value;
-    return (int)port_num_value;
+    return true;
 }
 
 static bool
@@ -290,7 +288,7 @@ validate_m_opt(const char *arg, char **menu_path)
     result = true;
     
 cleanup:
-    if (temp_file != NULL)
+    if (NULL != temp_file)
     {
         fclose(temp_file);
         temp_file = NULL;

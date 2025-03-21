@@ -58,9 +58,32 @@ static int
 validate_c_opt(const char * arg, int * closing_hour, int * opening_hour, int * o_flag);
 
 /**
- * Validate the port number option
+ * @param arg
+ * @param port_input
+ * @retval [true | false] for sucessful or failed validation.
+ * @brief
+ * Validates, and sets the '-p' parameter from getopt
+ * (or default value) to store the port number to be used by
+ * the server.
+ * 
+ * Process 
+ * 
+ * 1. Checks for early exit condition that the default value already set in
+ * main by get_opt is to be used.
+ * 
+ * 2. Checks to make sure that the variable we're using in main (default value)
+ * is valid for us to store once the option is validated.
+ * 
+ * 3. Uses strol to convert the command line option (string) into a long integer, it
+ * then checks the range of the converted string by checking if strtol set errno to ERANGE.
+ * 
+ * 4. Check the strtol_endptr set by strtol and if it's the NULL terminated that means that the 
+ * value (string) provided contained only numbers and no characters or special characters.
+ * 
+ * 5. Need to make sure the validated number is a valid port number in the accepted range because
+ * if it's not a valid port it would cause errors/potential crashes in the server.
  */
-static int
+static bool
 validate_p_opt(const char * arg, int * port_input);
 
 /**
