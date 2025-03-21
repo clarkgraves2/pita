@@ -27,6 +27,7 @@
 #define CLOSE_BF_OPEN_ERR (-6)
 #define PORT_RANGE_ERR (-7)
 #define INVALID_MENU_ERR (-8)
+#define INVALID_CHAR_ERR (-9)
 
 /**
  * Validate the number of tables option
@@ -61,7 +62,7 @@ validate_t_opt(const char * arg, int * num_of_tables)
     if (*strtol_endptr != '\0') {
         // log error
         printf("Error: Invalid characters in table value\n");
-        return STRTOL_CONV_ERR;
+        return INVALID_CHAR_ERR;
     }
 
     if (table_value < 1 || table_value > INT_MAX) 
@@ -109,7 +110,7 @@ validate_o_opt(const char * arg, int * opening_hour, int * closing_hour, int * c
     if (*strtol_endptr != '\0') {
         // log error
         printf("Error: Invalid characters in opening hour value\n");
-        return STRTOL_CONV_ERR;
+        return INVALID_CHAR_ERR;
     }
 
     if (open_hr_value < 0 || open_hr_value > 2300) 
@@ -228,14 +229,14 @@ validate_p_opt(const char * arg, int * port_input)
     if(ERANGE == errno)
     {
         // log error
-        printf("Error: Number out of range of long value\n");
+        printf("Error: Number out of range of strtol conversion.\n");
         return STRTOL_CONV_ERR;
     }
 
     if (*strtol_endptr != '\0') {
         // log error
         printf("Error: Invalid characters in port value\n");
-        return STRTOL_CONV_ERR;
+        return INVALID_CHAR_ERR;
     }
 
     if (port_num_value < 0 || port_num_value > 65535)
@@ -250,56 +251,74 @@ validate_p_opt(const char * arg, int * port_input)
     return (int)port_num_value;
 }
 
-/**
- * Validate the menu file path option
- */
-static char *
+static bool
 validate_m_opt(const char *arg, char **menu_path)
 {
+    bool result = false;
+    FILE *temp_file = NULL;
+    
+    if (NULL == arg)
+    {
+        // log default menu file set
+        result = true;
+        goto cleanup;
+    }
+
     if (NULL == menu_path)
     {
         // log error
         fprintf(stderr, "Error: Invalid parameter for menu path\n");
-        return NULL;
+        goto cleanup;
     }
 
-    if (NULL == arg)
-    {
-        // log default menu file set
-        *menu_path = MENU_FILE_DEFAULT;
-        return MENU_FILE_DEFAULT;
-    }
-
-    FILE *temp_file = fopen(arg, "r");
+    temp_file = fopen(arg, "r");
     if (NULL == temp_file)
     {
         // log error
         fprintf(stderr, "Error: Menu file not found at %s\n", arg);
-        return NULL;
+        goto cleanup;
+    }
+
+    *menu_path = strdup(arg);
+    if (NULL == *menu_path)
+    {
+        // log error
+        fprintf(stderr, "Error: Memory allocation failed for menu path\n");
+        goto cleanup;
     }
     
-    fclose(temp_file);
+    result = true;
     
-    *menu_path = (char *)arg;
-    return (char *)arg;
+cleanup:
+    if (temp_file != NULL)
+    {
+        fclose(temp_file);
+        temp_file = NULL;
+    }
+    
+    return result;
 }
 
 static bool
 validate_l_opt(const char *arg, FILE **log_file)
 {
+    bool result = false;
+    FILE *temp_file = NULL;
+
+    if (NULL == arg)
+    {
+        return true;
+    }
+
     if (NULL == log_file)
     {
         fprintf(stderr, "Error: Invalid parameter for log file\n");
         return false;
     }
 
-    if (NULL == arg)
-    {
-        *log_file = stderr;
-        return true;
-    }
+    
 
-    FILE *temp_file = fopen(arg, "a+");
+    temp_file = fopen(arg, "a+");
     if (NULL == temp_file)
     {
         fprintf(stderr, "Error: Cannot open or create log file at %s\n", arg);
@@ -307,8 +326,6 @@ validate_l_opt(const char *arg, FILE **log_file)
     }
     
     *log_file = temp_file;
-    fclose(temp_file);
-    temp_file = NULL;
     return true;
 }
 
