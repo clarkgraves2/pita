@@ -2,7 +2,6 @@
  * @file server_options.c
  * @brief Implementation of server command-line options handling
  */
-
  
 #include <errno.h>
 #include <limits.h>
@@ -26,35 +25,22 @@
 #define OPEN_HR_MAX (2300)
 #define OPEN_HR_MIN (0)
 #define MIDNIGHT_HOUR (0)
+#define MIN_TABLES (1)
 #define MINS_MODULO (100)
 
-#define PARAM_ERR (-1)
-#define TABLE_RANGE_ERR (-2)
-#define STRTOL_CONV_ERR (-3)
-#define TIME_RANGE_ERR (-4)
-#define TIME_HAS_MINS_ERR (-5)
-#define CLOSE_BF_OPEN_ERR (-6)
-#define PORT_RANGE_ERR (-7)
-#define INVALID_MENU_ERR (-8)
-#define INVALID_CHAR_ERR (-9)
-
-/**
- * Validate the number of tables option
- */
-static int
+static bool
 validate_t_opt(const char * arg, int * num_of_tables)
 {
-    if(NULL == num_of_tables)
-    {
-        // log error
-        return PARAM_ERR;
-    }
-
     if(NULL == arg)
     {
         // log default num of tables set.
-        *num_of_tables = NUM_TABLES_DEFAULT;
-        return NUM_TABLES_DEFAULT;
+        return true;
+    }
+
+    if(NULL == num_of_tables)
+    {
+        // log error
+        return false;
     }
 
     char * strtol_endptr;
@@ -65,25 +51,26 @@ validate_t_opt(const char * arg, int * num_of_tables)
     {
         // log error
         printf("Error: Number out of range of long value\n");
-        return STRTOL_CONV_ERR;
+        return false;
     }
 
-    if (*strtol_endptr != '\0') {
+    if ('\0' != *strtol_endptr) 
+    {
         // log error
         printf("Error: Invalid characters in table value\n");
-        return INVALID_CHAR_ERR;
+        return false;
     }
 
-    if (table_value < 1 || table_value > INT_MAX) 
+    if (MIN_TABLES > table_value || INT_MAX < table_value) 
     {
         // log error
         printf("Error: Table value must be between 1 and system's INT_MAX \n");
-        return TABLE_RANGE_ERR;
+        return false;
     }
     
     // log num of tables set
     *num_of_tables = (int)table_value;
-    return (int)table_value;
+    return true;
 }
 
 static bool
@@ -136,7 +123,7 @@ validate_o_opt(const char * arg, int * opening_hour, int * closing_hour, int * c
     {
         // log error
         printf("Error: Closing Time Cannot be before Opening Time\n");
-        return CLOSE_BF_OPEN_ERR;
+        return false;
     }
 
     return true;

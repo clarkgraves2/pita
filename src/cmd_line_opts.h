@@ -40,9 +40,30 @@ typedef struct
 } server_options_t;
 
 /**
- * Validate the number of tables option
+ * @param arg
+ * @param num_of_tables
+ * @retval [true | false] for sucessful or failed validation.
+ * @brief
+ * Validates, and sets the '-t' parameter from getopt
+ * (or default value) to store the number of tables for the 
+ * reservation system.
+ * 
+ * Process 
+ * 
+ * 1. Checks for early exit conditions that was to use the default value
+ * from get_opt to save from continuing through unneeded validation process.
+ * 
+ * 2. Check parameters haven't errored so that values provided by the 
+ * command line can be validated properly.
+ * 
+ * 3. Uses strtol to get input into (long) integer type then performs two checks 
+ * provided by strtol to make sure we are in a valid int range and wont overflow,
+ * and that there are not any invalid/special characters in the input value.
+ * 
+ * 4. Checks range of accepted tables between 1 and INT_MAX number to prevent
+ * overflows and errors later in the reservation system.
  */
-static int
+static bool
 validate_t_opt(const char * arg, int * num_of_tables);
 
 /**
