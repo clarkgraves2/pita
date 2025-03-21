@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <signal.h>
 
-#include "server_options.h"
+#include "cmd_line_opts.h"
 
 int main(int argc, char *argv[])
 {
@@ -10,12 +10,12 @@ int main(int argc, char *argv[])
     
     int option_result = validate_and_set_options(argc, argv, &options);
     
-    if (option_result == SERVER_OPTIONS_HELP) 
+    if (option_result == CMD_LINE_OPT_HELP) 
     {
         return EXIT_SUCCESS;
     }
     
-    if (option_result == SERVER_OPTIONS_FAILURE) 
+    if (option_result == CMD_LINE_OPT_FAILURE) 
     {
         // Log Error
         return EXIT_FAILURE;

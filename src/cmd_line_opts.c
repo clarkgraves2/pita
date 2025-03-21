@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <getopt.h>
 
-#include "server_options.h"
+#include "cmd_line_opts.h"
 
 #define NUM_TABLES_DEFAULT (5)
 #define OPENING_HOUR_DEFAULT (800)
@@ -20,6 +20,11 @@
 #define LOG_FILE_DEFAULT (stderr)
 #define MIN_PORT_NUM (0)
 #define MAX_PORT_NUM (65535)
+#define FLAG_ON (1)
+#define CLOSE_HR_MAX (2300)
+#define CLOSE_HR_MIN (0100)
+#define MIDNIGHT_HOUR (0)
+#define MINS_MODULO (100)
 
 #define PARAM_ERR (-1)
 #define TABLE_RANGE_ERR (-2)
@@ -142,25 +147,22 @@ validate_o_opt(const char * arg, int * opening_hour, int * closing_hour, int * c
     return (int)open_hr_value;
 }
 
-/**
- * Validate the closing hour option
- */
-static int
+static bool
 validate_c_opt(const char * arg, int * closing_hour, int * opening_hour, int * o_flag)
 {
-    if(NULL == closing_hour)
-    {
-        // log error
-        return PARAM_ERR;
-    }
-
     if(NULL == arg)
     {
-        // log default opening hour set.
-        *closing_hour = CLOSING_HOUR_DEFAULT;
-        return CLOSING_HOUR_DEFAULT;
+        return true;
     }
 
+    
+    if(NULL == closing_hour || NULL == opening_hour || NULL == o_flag)
+    {
+        // log error
+        return false;
+    }
+
+    
     char * strtol_endptr;
     errno = 0;
     long close_hr_value = strtol(arg, &strtol_endptr,10);
@@ -169,40 +171,40 @@ validate_c_opt(const char * arg, int * closing_hour, int * opening_hour, int * o
     {
         // log error
         printf("Error: Number out of range of long value\n");
-        return STRTOL_CONV_ERR;
+        return false;
     }
 
-    if (*strtol_endptr != '\0') {
-        // log error
-        printf("Error: Invalid characters in opening hour value\n");
-        return STRTOL_CONV_ERR;
-    }
-
-    if (close_hr_value > 2300 || (close_hr_value < 0100 && close_hr_value > 0))
+    if ('\0' != *strtol_endptr)
     {
         // log error
-        printf("Error: Closing hour must be between 0100 and 2300, or 0000\n");
-        return TIME_RANGE_ERR;
+        printf("Error: Invalid characters in opening hour value\n");
+        return false;
     }
 
-    if(close_hr_value % 100 != 0)
+    if(0 != (close_hr_value % MINS_MODULO))
     {
         // log error
         printf("Time format is on the hour every hour minutes will always be '00'");
-        return TIME_HAS_MINS_ERR;
+        return false;
     }
     
-    // Only do this check if opening hour has been set
-    if(o_flag != NULL && *o_flag != 0 && opening_hour != NULL && *opening_hour > close_hr_value)
+    if (CLOSE_HR_MAX < close_hr_value || (CLOSE_HR_MIN > close_hr_value && MIDNIGHT_HOUR < close_hr_value))
+    {
+        // log error
+        printf("Error: Closing hour must be between 0100 and 2300, or 0000\n");
+        return false;
+    }
+
+    if(FLAG_ON == *o_flag && *opening_hour > close_hr_value)
     {
         // log error
         printf("Error: Closing Time Cannot be before Opening Time\n");
-        return CLOSE_BF_OPEN_ERR;
+        return false;
     }
 
     // log closing hour set
     *closing_hour = (int)close_hr_value;
-    return (int)close_hr_value;
+    return true;
 }
 
 static bool
@@ -350,7 +352,7 @@ int validate_and_set_options(int argc, char *argv[], server_options_t *options)
     if (NULL == options)
     {
         fprintf(stderr, "Error: Invalid options parameter\n");
-        return SERVER_OPTIONS_FAILURE;
+        return CMD_LINE_OPT_FAILURE;
     }
     
     options->num_tables = NUM_TABLES_DEFAULT;
@@ -385,44 +387,44 @@ int validate_and_set_options(int argc, char *argv[], server_options_t *options)
         case 't':  
             if (validate_t_opt(optarg, &options->num_tables) < 0) 
             {
-                return SERVER_OPTIONS_FAILURE;
+                return CMD_LINE_OPT_FAILURE;
             }
             break;
         case 'o':
             if (validate_o_opt(optarg, &options->opening_hour, &options->closing_hour, &c_flag) < 0) 
             {
-                return SERVER_OPTIONS_FAILURE;
+                return CMD_LINE_OPT_FAILURE;
             }
             o_flag = 1;
             break;
         case 'c':
             if (validate_c_opt(optarg, &options->closing_hour, &options->opening_hour, &o_flag) < 0) 
             {
-                return SERVER_OPTIONS_FAILURE;
+                return CMD_LINE_OPT_FAILURE;
             }
             c_flag = 1;
             break;
         case 'p':
             if (validate_p_opt(optarg, &options->port) < 0) 
             {
-                return SERVER_OPTIONS_FAILURE;
+                return CMD_LINE_OPT_FAILURE;
             }
             break;
         case 'm':
             if (NULL == validate_m_opt(optarg, &options->menu_path)) 
             {
-                return SERVER_OPTIONS_FAILURE;
+                return CMD_LINE_OPT_FAILURE;
             }
             break;
         case 'l':
             if (NULL == validate_l_opt(optarg, &options->log_file)) 
             {
-                return SERVER_OPTIONS_FAILURE;
+                return CMD_LINE_OPT_FAILURE;
             }
             break;
         case 'h':
             display_help();
-            return SERVER_OPTIONS_HELP;
+            return CMD_LINE_OPT_HELP;
         case ':':
             switch (optopt) 
             {
@@ -449,7 +451,7 @@ int validate_and_set_options(int argc, char *argv[], server_options_t *options)
         }
     }
     
-    return SERVER_OPTIONS_SUCCESS;
+    return CMD_LINE_OPT_SUCCESS;
 }
 
 void cleanup_options(server_options_t *options)

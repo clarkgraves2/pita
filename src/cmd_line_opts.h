@@ -11,9 +11,9 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#define SERVER_OPTIONS_SUCCESS   (0)
-#define SERVER_OPTIONS_FAILURE   (-1)
-#define SERVER_OPTIONS_HELP      (-2)
+#define CMD_LINE_OPT_SUCCESS   (0)
+#define CMD_LINE_OPT_FAILURE   (-1)
+#define CMD_LINE_OPT_HELP      (-2)
  
 /**
  * [int] num_tables 
@@ -52,9 +52,34 @@ static int
 validate_o_opt(const char * arg, int * opening_hour, int * closing_hour, int * c_flag);
 
 /**
- * Validate the closing hour option
+ * @param arg
+ * @param opening_hour
+ * @param closing_hour
+ * @param c_flag
+ * @retval [true | false] for sucessful or failed validation.
+ * @brief
+ * Validates, and sets the '-c' parameter from getopt
+ * (or default value) to store the closing hour of the reservation
+ * system.
+ * 
+ * Process 
+ * 
+ * 1. Checks for early exit conditions that was to use the default value
+ * from get_opt to save from continuing through unneeded validation process.
+ * 
+ * 2. Need to make sure parameters haven't errored so that values provided by the 
+ * command line can be validated properly.
+ * 
+ * 3. Uses strtol to get input into (long) integer type then performs two checks 
+ * provided by strtol to make sure we are in a valid int range and wont overflow,
+ * and that there are not any invalid/special characters in the input value.
+ * 
+ * 4. Makes sure the closing hour provided is in the valid range of closing hours.
+ * 
+ * 5. Want to make sure closing hour isn't before the opening hour so that later when listing
+ * and manipulating reservations we won't get unexpected behavior. 
  */
-static int
+static bool
 validate_c_opt(const char * arg, int * closing_hour, int * opening_hour, int * o_flag);
 
 /**
@@ -149,10 +174,9 @@ static void display_help(void);
  * 
  * @param argc Argc from main
  * @param argv Argv arguments from main
- * @param options Pointer to options structure used by the server
- * @retval SERVER_OPTIONS_SUCCESS 
- * @retval SERVER_OPTIONS_HELP 
- * @retval SERVER_OPTIONS_FAILURE
+ * @param options Pointer to cmd line options storage struct
+ * @retval [CMD_LINE_OPTS_[SUCCESS | HELP | FAILURE] 
+ * @brief
  * 
  */
 int validate_and_set_options(int argc, char *argv[], server_options_t *options);
