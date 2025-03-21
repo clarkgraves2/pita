@@ -329,12 +329,12 @@ display_help(void)
 }
 
 
-int validate_and_set_options(int argc, char *argv[], server_options_t *options)
+int validate_and_set_options(int argc, char *argv[], cmd_line_options_t *options)
 {
     if (NULL == options)
     {
         fprintf(stderr, "Error: Invalid options parameter\n");
-        return CMD_LINE_OPT_FAILURE;
+        return CMD_LINE_OPTS_FAILURE;
     }
     
     options->num_tables = NUM_TABLES_DEFAULT;
@@ -369,44 +369,44 @@ int validate_and_set_options(int argc, char *argv[], server_options_t *options)
         case 't':  
             if (validate_t_opt(optarg, &options->num_tables) < 0) 
             {
-                return CMD_LINE_OPT_FAILURE;
+                return CMD_LINE_OPTS_FAILURE;
             }
             break;
         case 'o':
             if (validate_o_opt(optarg, &options->opening_hour, &options->closing_hour, &c_flag) < 0) 
             {
-                return CMD_LINE_OPT_FAILURE;
+                return CMD_LINE_OPTS_FAILURE;
             }
             o_flag = 1;
             break;
         case 'c':
             if (validate_c_opt(optarg, &options->closing_hour, &options->opening_hour, &o_flag) < 0) 
             {
-                return CMD_LINE_OPT_FAILURE;
+                return CMD_LINE_OPTS_FAILURE;
             }
             c_flag = 1;
             break;
         case 'p':
             if (validate_p_opt(optarg, &options->port) < 0) 
             {
-                return CMD_LINE_OPT_FAILURE;
+                return CMD_LINE_OPTS_FAILURE;
             }
             break;
         case 'm':
             if (NULL == validate_m_opt(optarg, &options->menu_path)) 
             {
-                return CMD_LINE_OPT_FAILURE;
+                return CMD_LINE_OPTS_FAILURE;
             }
             break;
         case 'l':
             if (NULL == validate_l_opt(optarg, &options->log_file)) 
             {
-                return CMD_LINE_OPT_FAILURE;
+                return CMD_LINE_OPTS_FAILURE;
             }
             break;
         case 'h':
             display_help();
-            return CMD_LINE_OPT_HELP;
+            return CMD_LINE_OPTS_HELP;
         case ':':
             switch (optopt) 
             {
@@ -433,10 +433,10 @@ int validate_and_set_options(int argc, char *argv[], server_options_t *options)
         }
     }
     
-    return CMD_LINE_OPT_SUCCESS;
+    return CMD_LINE_OPTS_SUCCESS;
 }
 
-void cleanup_options(server_options_t *options)
+void cleanup_options(cmd_line_options_t *options)
 {
     if (NULL == options)
     {
@@ -455,3 +455,5 @@ void cleanup_options(server_options_t *options)
         options->log_file = NULL;
     }
 }
+
+/*** end of file ***/

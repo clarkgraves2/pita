@@ -6,16 +6,16 @@
 
 int main(int argc, char *argv[])
 {
-    server_options_t options;
+    cmd_line_options_t options;
     
-    int option_result = validate_and_set_options(argc, argv, &options);
+    int options_result = validate_and_set_options(argc, argv, &options);
     
-    if (option_result == CMD_LINE_OPT_HELP) 
+    if (options_result == CMD_LINE_OPTS_HELP) 
     {
         return EXIT_SUCCESS;
     }
     
-    if (option_result == CMD_LINE_OPT_FAILURE) 
+    if (options_result == CMD_LINE_OPTS_FAILURE) 
     {
         // Log Error
         return EXIT_FAILURE;
@@ -27,3 +27,5 @@ int main(int argc, char *argv[])
     
     return EXIT_SUCCESS;
 }
+
+/*** end of file ***/

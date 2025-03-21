@@ -3,17 +3,17 @@
  * @brief Header file for server command-line options handling
  */
 
-#ifndef SERVER_OPTIONS_H
-#define SERVER_OPTIONS_H
+#ifndef CMD_LINE_OPTS_H
+#define CMD_LINE_OPTS_H
 
 #include <errno.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdbool.h>
 
-#define CMD_LINE_OPT_SUCCESS   (0)
-#define CMD_LINE_OPT_FAILURE   (-1)
-#define CMD_LINE_OPT_HELP      (-2)
+#define CMD_LINE_OPTS_SUCCESS   (0)
+#define CMD_LINE_OPTS_FAILURE   (-1)
+#define CMD_LINE_OPTS_HELP      (-2)
  
 /**
  * [int] num_tables 
@@ -37,7 +37,7 @@ typedef struct
     int port;            
     char *menu_path;
     FILE *log_file;      
-} server_options_t;
+} cmd_line_options_t;
 
 /**
  * @param arg
@@ -223,15 +223,20 @@ static void display_help(void);
  * @param options Pointer to cmd line options storage struct
  * @retval [CMD_LINE_OPTS_[SUCCESS | HELP | FAILURE] 
  * @brief
- * 
+ * Utilizes get_opt's loop parsing and switch statement to execute
+ * desired validation functions. After the get_opt while loop finishes and
+ * all arguments are validated, the resulting action is that the server can 
+ * proceed to initialize and have the validated cmd_line_args set. 
  */
-int validate_and_set_options(int argc, char *argv[], server_options_t *options);
+int validate_and_set_options(int argc, char *argv[], cmd_line_options_t *options);
 
 /**
  * Frees the resources used to validate / set server options
  * 
  * @param options Pointer to options structure
  */
-void cleanup_options(server_options_t *options);
+void cleanup_options(cmd_line_options_t *options);
 
-#endif /* SERVER_OPTIONS_H */
+#endif /* CMD_LINE_OPTS_H */
+
+/*** end of file ***/
