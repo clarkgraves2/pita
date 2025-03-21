@@ -461,6 +461,12 @@ void cleanup_options(server_options_t *options)
         return;
     }
     
+    if (options->menu_path != NULL && options->menu_path != MENU_FILE_DEFAULT)
+    {
+        free(options->menu_path);
+        options->menu_path = NULL;
+    }
+
     if (options->log_file != NULL && options->log_file != stderr)
     {
         fclose(options->log_file);
