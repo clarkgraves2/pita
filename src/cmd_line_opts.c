@@ -30,6 +30,31 @@
 #define MIN_TABLES (1)
 #define MINS_MODULO (100)
 
+/**
+ * @param arg
+ * @param num_of_tables
+ * @retval [true | false] for sucessful or failed validation.
+ * @brief
+ * Validates, and sets the '-t' parameter from getopt
+ * (or default value) to store the number of tables for the
+ * reservation system.
+ *
+ * Process
+ *
+ * 1. Checks for early exit conditions that was to use the default value
+ * from get_opt to save from continuing through unneeded validation process.
+ *
+ * 2. Check parameters haven't errored so that values provided by the
+ * command line can be validated properly.
+ *
+ * 3. Uses strtol to get input into (long) integer type then performs two checks
+ * provided by strtol to make sure we are in a valid int range and wont
+ * overflow, and that there are not any invalid/special characters in the input
+ * value.
+ *
+ * 4. Checks range of accepted tables between 1 and INT_MAX number to prevent
+ * overflows and errors later in the reservation system.
+ */
 static bool validate_t_opt(const char *arg, int *num_of_tables)
 {
     if (NULL == arg)
@@ -74,6 +99,35 @@ static bool validate_t_opt(const char *arg, int *num_of_tables)
     return true;
 }
 
+/**
+ * @param arg
+ * @param opening_hour
+ * @param closing_hour
+ * @param c_flag
+ * @retval [true | false] for sucessful or failed validation.
+ * @brief
+ * Validates, and sets the '-o' parameter from getopt
+ * (or default value) to store the opening hour of the reservation
+ * system.
+ *
+ * Process
+ *
+ * 1. Checks for early exit conditions that was to use the default value
+ * from get_opt to save from continuing through unneeded validation process.
+ *
+ * 2. Need to make sure parameters haven't errored so that values provided by
+ * the command line can be validated properly.
+ *
+ * 3. Uses strtol to get input into (long) integer type then performs two checks
+ * provided by strtol to make sure we are in a valid int range and wont
+ * overflow, and that there are not any invalid/special characters in the input
+ * value.
+ *
+ * 4. Check the opening hour provided is in the valid range of closing hours.
+ *
+ * 5. Check that closing hour isn't before the opening hour so that later when
+ * listing and manipulating reservations we won't get unexpected behavior.
+ */
 static bool validate_o_opt(const char *arg,
                            int        *opening_hour,
                            int        *closing_hour,
@@ -133,6 +187,36 @@ static bool validate_o_opt(const char *arg,
     return true;
 }
 
+/**
+ * @param arg
+ * @param closing_hour
+ * @param opening_hour
+ * @param o_flag
+ * @retval [true | false] for sucessful or failed validation.
+ * @brief
+ * Validates, and sets the '-c' parameter from getopt
+ * (or default value) to store the closing hour of the reservation
+ * system.
+ *
+ * Process
+ *
+ * 1. Checks for early exit conditions that was to use the default value
+ * from get_opt to save from continuing through unneeded validation process.
+ *
+ * 2. Need to make sure parameters haven't errored so that values provided by
+ * the command line can be validated properly.
+ *
+ * 3. Uses strtol to get input into (long) integer type then performs two checks
+ * provided by strtol to make sure we are in a valid int range and wont
+ * overflow, and that there are not any invalid/special characters in the input
+ * value.
+ *
+ * 4. Makes sure the closing hour provided is in the valid range of closing
+ * hours.
+ *
+ * 5. Want to make sure closing hour isn't before the opening hour so that later
+ * when listing and manipulating reservations we won't get unexpected behavior.
+ */
 static bool validate_c_opt(const char *arg,
                            int        *closing_hour,
                            int        *opening_hour,
@@ -195,6 +279,35 @@ static bool validate_c_opt(const char *arg,
     return true;
 }
 
+/**
+ * @param arg
+ * @param port_input
+ * @retval [true | false] for sucessful or failed validation.
+ * @brief
+ * Validates, and sets the '-p' parameter from getopt
+ * (or default value) to store the port number to be used by
+ * the server.
+ *
+ * Process
+ *
+ * 1. Checks for early exit condition that the default value already set in
+ * main by get_opt is to be used.
+ *
+ * 2. Checks to make sure that the variable we're using in main (default value)
+ * is valid for us to store once the option is validated.
+ *
+ * 3. Uses strol to convert the command line option (string) into a long
+ * integer, it then checks the range of the converted string by checking if
+ * strtol set errno to ERANGE.
+ *
+ * 4. Check the strtol_endptr set by strtol and if it's the NULL terminated that
+ * means that the value (string) provided contained only numbers and no
+ * characters or special characters.
+ *
+ * 5. Need to make sure the validated number is a valid port number in the
+ * accepted range because if it's not a valid port it would cause
+ * errors/potential crashes in the server.
+ */
 static bool validate_p_opt(const char *arg, int *port_input)
 {
     if (NULL == arg)
@@ -239,6 +352,30 @@ static bool validate_p_opt(const char *arg, int *port_input)
     return true;
 }
 
+/**
+ * @param arg
+ * @param menu_path
+ * @retval [true | false] for sucessful or failed validation
+ * @brief
+ * Validates, and sets the '-m' parameter from getopt
+ * (or default value) to store the file_path of the menu
+ * in the server's option settings.
+ *
+ * Process
+ *
+ * 1. If no value was provided after the option get_opt will set value
+ * to NULL so that the default file in main will be used resulting in
+ * an early exit.
+ *
+ * 2. Checks that menu file_path didn't fail when passing by reference.
+ *
+ * 3. If fopen fails on the menu's filepath then it's an invalid path.
+ *
+ * 4. If the filepath is valid we store the file_path in the server settings
+ * close the file since it's a read only menu and isn't used in our program.
+ * We then set it's value to NULL after it's closed.
+ *
+ */
 static bool validate_m_opt(const char *arg, char **menu_path)
 {
     bool  result    = false;
@@ -286,9 +423,32 @@ cleanup:
     return result;
 }
 
+/**
+ * @param arg
+ * @param log_file
+ * @retval [true | false] for sucessful or failed validation
+ * @brief
+ * Validates, and sets the '-l' parameter from getopt
+ * (or default value to open the log file and store the
+ * pointer in the server's option settings
+ *
+ * Process
+ *
+ * 1.If no value was provided after the option get_opt will set value
+ * to NULL so that the default file in main will be used resulting in
+ * an early exit.
+ *
+ * 2. Checks that log_file pointer didn't fail when passing by reference.
+ *
+ * 3. If fopen fails to open the provided file_path then that tells us that
+ * it was an invalid file_path or non-existent file.
+ *
+ * 4. If the file_path is validated we set the opened log_file pointer
+ * to be used by the server for logging.
+ *
+ */
 static bool validate_l_opt(const char *arg, FILE **log_file)
 {
-    bool  result    = false;
     FILE *temp_file = NULL;
 
     if (NULL == arg)
@@ -313,6 +473,9 @@ static bool validate_l_opt(const char *arg, FILE **log_file)
     return true;
 }
 
+/**
+ * Displays help information for command line options menu
+ */
 static void display_help(void)
 {
     printf("Usage: ./bin/pita_bytes [options]\n");
@@ -342,15 +505,16 @@ int validate_and_set_options(int                 argc,
     options->opening_hour = OPENING_HOUR_DEFAULT;
     options->closing_hour = CLOSING_HOUR_DEFAULT;
     options->port         = PORT_DEFAULT;
-    options->menu_path    = MENU_FILE_DEFAULT;
+    options->menu_path    = (char *)MENU_FILE_DEFAULT;
     options->m_flag       = FLAG_OFF;
     options->log_file     = LOG_FILE_DEFAULT;
 
     int get_opt       = 0;
     int get_opt_index = 0;
-    int opterr        = 0;
     int c_flag        = 0;
     int o_flag        = 0;
+
+    opterr = 0;
 
     static struct option long_options[] = {
         {"tables", optional_argument, 0, 't'},

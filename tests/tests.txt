@@ -1,0 +1,42 @@
+# -t tests
+-t0
+-t 0
+-t-1
+-t -1
+-t a2c
+-t &
+-t&
+-try
+-t#4
+-t4#
+-t$r
+-t r$
+-t
+-t 999999999999999999999999999999999999999999
+
+# Test with specific opening and closing hours
+-o 0900 -c 2200
+
+# Test with custom menu file
+-m ./menu.txt
+
+# Test with custom log file
+-l ./server.log
+
+# Test with custom port
+-p 9000
+
+# Test with multiple options
+-t 15 -o 0700 -c 2300 -p 9000 -m ./menu.txt -l ./server.log
+
+# Test with invalid options to check error handling
+-t abc
+
+# Test with invalid hours
+-o 2500
+
+# Test with conflicting hours
+-o 2000 -c 1000
+
+# Test with help option
+-h
