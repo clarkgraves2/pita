@@ -11,6 +11,7 @@ VALGRIND_FLAGS = --leak-check=full --show-leak-kinds=all --track-origins=yes
 SRC_DIR = src
 BIN_DIR = bin
 TEST_DIR = tests
+TEST_RESULTS_DIR = $(TEST_DIR)/results
 
 # Source and target
 SRC = $(SRC_DIR)/server_main.c \
@@ -23,6 +24,9 @@ TEST_FILE = $(TEST_DIR)/tests.txt
 # Create bin directory if it doesn't exist
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
+
+$(TEST_RESULTS_DIR):
+	mkdir -p $(TEST_RESULTS_DIR)
 
 # Build the server (regular build)
 $(TARGET): $(SRC) | $(BIN_DIR)
@@ -38,8 +42,13 @@ valgrind: debug
 
 # Valgrind batch testing - reads options from test file
 valgrind_tests: debug
-	@bash -c 'grep -v "^#" ./tests/tests.txt | grep -v "^\s*$$" | while read line; do echo; echo "Testing: $$line"; $(VALGRIND) $(VALGRIND_FLAGS) $(TARGET) $$line; done'
-
+	@echo "Running Valgrind tests, saving to results.txt..."
+	@echo "Valgrind Test Results - $(shell date)" > results.txt
+	@bash -c 'grep -v "^#" ./tests/tests.txt | grep -v "^\s*$$" | while read line; do \
+		echo "\n==== Testing: $$line ====" >> results.txt; \
+		$(VALGRIND) $(VALGRIND_FLAGS) $(TARGET) $$line 2>&1 >> results.txt; \
+	done'
+	@echo "Tests completed. Results saved to results.txt"
 
 # Create test directory if it doesn't exist
 $(TEST_DIR):
@@ -48,7 +57,9 @@ $(TEST_DIR):
 # Clean build artifacts
 clean:
 	rm -rf $(BIN_DIR)
+	rm -rf $(TEST_RESULTS_DIR)
 	rm -f ./server.log
+	rm -f ./results.txt
 
 # Set as the default target
 .DEFAULT_GOAL := $(TARGET)

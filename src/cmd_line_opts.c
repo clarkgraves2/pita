@@ -100,6 +100,25 @@ static bool validate_t_opt(const char *arg, int *num_of_tables)
 }
 
 /**
+ * Helper function to determine if closing time is valid compared to opening
+ * time
+ * @param opening_hour Opening hour value (0-2300)
+ * @param closing_hour Closing hour value (0-2300, 0 means midnight)
+ * @retval [true | false] for successful or failed validation.
+ */
+static bool is_valid_time_range(int opening_hour, int closing_hour)
+{
+    // Special case: Midnight (0) is a valid closing time
+    if (closing_hour == MIDNIGHT_HOUR)
+    {
+        return true;
+    }
+
+    // Regular case: Closing hour must be after opening hour
+    return closing_hour > opening_hour;
+}
+
+/**
  * @param arg
  * @param opening_hour
  * @param closing_hour
@@ -177,13 +196,18 @@ static bool validate_o_opt(const char *arg,
         return false;
     }
 
-    if (FLAG_ON == *c_flag && *closing_hour > open_hr_value)
+    if (FLAG_ON == *c_flag)
     {
-        // log error
-        printf("Error: Closing Time Cannot be before Opening Time\n");
-        return false;
+        // Use the helper function to validate time range
+        if (!is_valid_time_range(open_hr_value, *closing_hour))
+        {
+            // log error
+            printf("Error: Closing Time Cannot be before Opening Time\n");
+            return false;
+        }
     }
 
+    *opening_hour = (int)open_hr_value;
     return true;
 }
 
@@ -251,6 +275,13 @@ static bool validate_c_opt(const char *arg,
         return false;
     }
 
+    if (close_hr_value < 0)
+    {
+        // log error
+        printf("Error: Closing hour cannot be negative\n");
+        return false;
+    }
+
     if (0 != (close_hr_value % MINS_MODULO))
     {
         // log error
@@ -267,11 +298,14 @@ static bool validate_c_opt(const char *arg,
         return false;
     }
 
-    if (FLAG_ON == *o_flag && *opening_hour > close_hr_value)
+    if (FLAG_ON == *o_flag)
     {
-        // log error
-        printf("Error: Closing Time Cannot be before Opening Time\n");
-        return false;
+        // Use the helper function to validate time range
+        if (!is_valid_time_range(*opening_hour, close_hr_value))
+        {
+            printf("Error: Closing Time Cannot be before Opening Time\n");
+            return false;
+        }
     }
 
     // log closing hour set
@@ -308,6 +342,15 @@ static bool validate_c_opt(const char *arg,
  * accepted range because if it's not a valid port it would cause
  * errors/potential crashes in the server.
  */
+/**
+ * @param arg
+ * @param port_input
+ * @retval [true | false] for successful or failed validation.
+ * @brief
+ * Validates, and sets the '-p' parameter from getopt
+ * (or default value) to store the port number to be used by
+ * the server.
+ */
 static bool validate_p_opt(const char *arg, int *port_input)
 {
     if (NULL == arg)
@@ -317,7 +360,9 @@ static bool validate_p_opt(const char *arg, int *port_input)
 
     if (NULL == port_input)
     {
-        // log error
+        // log error using printf for consistency with other validation
+        // functions
+        printf("Error: Invalid parameter for port value\n");
         return false;
     }
 
@@ -327,28 +372,61 @@ static bool validate_p_opt(const char *arg, int *port_input)
 
     if (ERANGE == errno)
     {
-        // log error
-        fprintf(stderr, "Error: Number out of range of strtol conversion.\n");
+        // log error using printf for consistency
+        printf("Error: Number out of range of long value\n");
         return false;
     }
 
     if ('\0' != *strtol_endptr)
     {
-        // log error
-        fprintf(stderr, "Error: Invalid characters in port value\n");
+        // log error using printf for consistency
+        printf("Error: Invalid characters in port value\n");
         return false;
     }
 
     if (MIN_PORT_NUM > port_num_value || MAX_PORT_NUM < port_num_value)
     {
-        // log error
-        fprintf(stderr,
-                "Error: Invalid Port Number Must be between 0 and 65535\n");
+        // log error using printf for consistency
+        printf("Error: Invalid Port Number Must be between 0 and 65535\n");
         return false;
     }
 
     // log port set
     *port_input = (int)port_num_value;
+    return true;
+}
+
+/**
+ * Helper function to validate file paths
+ * Rejects empty strings and paths with wildcard characters
+ * @param path The file path to validate
+ * @retval [true | false] for successful or failed validation.
+ */
+static bool is_valid_file_path(const char *path)
+{
+    if ('\0' == path[0])
+    {
+        printf("Error: File path cannot be an empty string\n");
+        return false;
+    }
+
+    if (0 == strcmp(path, "\"\"") || 0 == strcmp(path, "''"))
+    {
+        printf("Error: File path cannot be empty\n");
+        return false;
+    }
+
+    const char *wildcard_chars = "*?=";
+    for (size_t i = 0; i < strlen(wildcard_chars); i++)
+    {
+        if (strchr(path, wildcard_chars[i]) != NULL)
+        {
+            printf("Error: File path contains invalid wildcard or special "
+                   "characters\n");
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -391,7 +469,12 @@ static bool validate_m_opt(const char *arg, char **menu_path)
     if (NULL == menu_path)
     {
         // log error
-        fprintf(stderr, "Error: Invalid parameter for menu path\n");
+        printf("Error: Invalid parameter for menu path\n");
+        goto cleanup;
+    }
+
+    if (!is_valid_file_path(arg))
+    {
         goto cleanup;
     }
 
@@ -399,7 +482,7 @@ static bool validate_m_opt(const char *arg, char **menu_path)
     if (NULL == temp_file)
     {
         // log error
-        fprintf(stderr, "Error: Menu file not found at %s\n", arg);
+        printf("Error: Menu file not found at %s\n", arg);
         goto cleanup;
     }
 
@@ -407,7 +490,7 @@ static bool validate_m_opt(const char *arg, char **menu_path)
     if (NULL == *menu_path)
     {
         // log error
-        fprintf(stderr, "Error: Memory allocation failed for menu path\n");
+        printf("Error: Memory allocation failed for menu path\n");
         goto cleanup;
     }
 
@@ -458,14 +541,19 @@ static bool validate_l_opt(const char *arg, FILE **log_file)
 
     if (NULL == log_file)
     {
-        fprintf(stderr, "Error: Invalid parameter for log file\n");
+        printf("Error: Invalid parameter for log file\n");
+        return false;
+    }
+
+    if (!is_valid_file_path(arg))
+    {
         return false;
     }
 
     temp_file = fopen(arg, "a+");
     if (NULL == temp_file)
     {
-        fprintf(stderr, "Error: Cannot open or create log file at %s\n", arg);
+        printf("Error: Cannot open or create log file at %s\n", arg);
         return false;
     }
 
