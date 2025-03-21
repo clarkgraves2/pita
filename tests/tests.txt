@@ -1,0 +1,263 @@
+# Comprehensive test suite for command-line options
+# ==================================================
+
+# INDIVIDUAL OPTION TESTS
+# ==================================================
+
+# -t (tables) option tests
+# Valid cases
+-t 1
+-t 5
+-t 10
+-t 100
+-t 2147483647
+# Invalid cases
+-t 0
+-t -1
+-t -100
+-t 0x10
+-t 10.5
+-t 2147483648
+-t 999999999999999999999
+-t abc
+-t a2c
+-t 2c
+-t c2
+-t &
+-t&
+-t?
+-t*
+-t%
+-t#
+-t#4
+-t4#
+-t$
+-t$r
+-t r$
+-t\n
+-t=10
+-t!
+-t@
+-t[]
+-t()
+-t{}
+-t""
+-t''
+# No value specified
+-t
+
+# -o (opening hour) option tests
+# Valid cases
+-o 0
+-o 0000
+-o 0100
+-o 0800
+-o 0900
+-o 1200
+-o 1700
+-o 2300
+# Invalid cases
+-o -100
+-o 2400
+-o 2500
+-o 9999
+-o 0030
+-o 0230
+-o 1245
+-o 0abc
+-o abc
+-o 08:00
+-o 8am
+-o 9a
+-o 8p
+-o 09.00
+# No value specified
+-o
+
+# -c (closing hour) option tests
+# Valid cases
+-c 0000
+-c 0100
+-c 1700
+-c 2100
+-c 2300
+# Invalid cases
+-c -100
+-c 2400
+-c 2500
+-c 9999
+-c 0030
+-c 0230
+-c 1245
+-c 0abc
+-c abc
+-c 21:00
+-c 9pm
+-c 9p
+-c 21.00
+# No value specified
+-c
+
+# -p (port) option tests
+# Valid cases
+-p 0
+-p 80
+-p 443
+-p 8000
+-p 8080
+-p 65535
+# Invalid cases
+-p -1
+-p -100
+-p 65536
+-p 100000
+-p 0x10
+-p 10.5
+-p abc
+-p 80a
+-p a80
+-p :80
+-p $80
+# No value specified
+-p
+
+# -m (menu file) option tests
+# Valid cases (assuming these files exist)
+-m ./tests/results/menu.txt
+-m tests/results/menu.txt
+-m ./tests/results/test_menu.txt
+-m ./tests/results/alt_menu.txt
+# Invalid cases
+-m ./tests/results/nonexistent.txt
+-m ""
+-m ?
+-m *
+# No value specified
+-m
+
+# -l (log file) option tests
+# Valid cases (these should be writable locations)
+-l ./tests/results/server.log
+-l tests/results/server.log
+-l ./tests/results/logs/server.log
+-l ./tests/results/test.log
+# Invalid cases
+-l /root/server.log
+-l /nonexistent/server.log
+-l ""
+-l ?
+-l *
+# No value specified
+-l
+
+# -h (help) option test
+-h
+--help
+
+# COMBINATION TESTS
+# ==================================================
+
+# Valid combinations
+-t 10 -o 0900 -c 2100
+-t 10 -p 8080
+-t 20 -o 0700 -c 2300 -p 9000
+-o 0800 -c 1700 -p 8080
+-t 15 -o 0900 -c 2100 -p 8080 -m ./tests/results/menu.txt -l ./tests/results/server.log
+
+# Invalid combinations
+# Conflicting hours
+-o 1700 -c 0900
+-o 2000 -c 1900
+-o 2300 -c 0000
+-o 1200 -c 1100
+
+# Missing required arguments
+-t -o
+-t -c
+-o -c
+-p -t
+
+# Mixed valid and invalid inputs
+-t abc -o 0900 -c 2100
+-t 10 -o 2500 -c 2100
+-t 10 -o 0900 -c 2500
+-t 10 -o 0900 -c 2100 -p 100000
+-t 0 -o 0900 -c 2100 -p 8080
+
+# ORDER VARIATION TESTS
+# ==================================================
+# Same options in different orders
+-o 0900 -c 2100 -t 10
+-c 2100 -o 0900 -t 10
+-p 8080 -t 10 -o 0900 -c 2100
+-t 10 -p 8080 -o 0900 -c 2100
+-m ./tests/results/menu.txt -t 10 -o 0900 -c 2100 -p 8080 -l ./tests/results/server.log
+-l ./tests/results/server.log -m ./tests/results/menu.txt -t 10 -o 0900 -c 2100 -p 8080
+
+# REPEATED OPTION TESTS
+# ==================================================
+# What happens if an option is specified multiple times?
+-t 5 -t 10
+-o 0800 -o 0900
+-c 2000 -c 2100
+-p 8000 -p 8080
+-m ./tests/results/menu1.txt -m ./tests/results/menu2.txt
+-l ./tests/results/log1.log -l ./tests/results/log2.log
+
+# WHITESPACE TESTS
+# ==================================================
+-t    10
+-o    0900
+-c    2100
+-t 10 -o 0900    -c    2100
+
+# OPTION PARSING EDGE CASES
+# ==================================================
+# Single dash with multiple options
+-to 0900
+-tc 2100
+-tp 8080
+-toc 0900 2100
+-tocpml 10 0900 2100 8080 ./tests/results/menu.txt ./tests/results/server.log
+
+# Options with optional arguments
+-t= 10
+-o= 0900
+-c= 2100
+-p= 8080
+-m= ./tests/results/menu.txt
+-l= ./tests/results/server.log
+
+# Unrecognized options
+-x
+-z 100
+-tocalm
+--unknown
+--unknown=value
+
+# SPECIAL CHARACTER TESTS
+# ==================================================
+-t 10 # Comment
+-o 0900 // Comment
+-c 2100 /* Comment */
+-t "10"
+-t '10'
+-t \10
+-t 10\
+-t $USER
+-o $HOUR
+-c $(date)
+-m "./tests/results/menu.txt"
+-m './tests/results/menu.txt'
+-m $MENUFILE
+-l "./tests/results/server.log"
+
+# INPUT LENGTH TESTS
+# ==================================================
+# Very long arguments
+-t 1234567890123456789012345678901234567890
+-o 1234567890123456789012345678901234567890
+-c 1234567890123456789012345678901234567890
+-p 1234567890123456789012345678901234567890
+-m ./tests/results/longfilename1234567890123456789012345678901234567890123456789012345678901234567890.txt
+-l ./tests/results/longlogname1234567890123456789012345678901234567890123456789012345678901234567890.log
