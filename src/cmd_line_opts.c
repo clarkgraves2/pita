@@ -4,10 +4,12 @@
  */
  
 #include <errno.h>
+#include <getopt.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <getopt.h>
+#include <string.h>
+
 
 #include "cmd_line_opts.h"
 
@@ -20,6 +22,7 @@
 #define MIN_PORT_NUM (0)
 #define MAX_PORT_NUM (65535)
 #define FLAG_ON (1)
+#define FLAG_OFF (0)
 #define CLOSE_HR_MAX (2300)
 #define CLOSE_HR_MIN (0100)
 #define OPEN_HR_MAX (2300)
@@ -342,6 +345,7 @@ int validate_and_set_options(int argc, char *argv[], cmd_line_options_t *options
     options->closing_hour = CLOSING_HOUR_DEFAULT;
     options->port = PORT_DEFAULT;
     options->menu_path = MENU_FILE_DEFAULT;
+    options->m_flag = FLAG_OFF;
     options->log_file = LOG_FILE_DEFAULT;
     
     int get_opt = 0;
@@ -367,39 +371,40 @@ int validate_and_set_options(int argc, char *argv[], cmd_line_options_t *options
         switch (get_opt) 
         {
         case 't':  
-            if (validate_t_opt(optarg, &options->num_tables) < 0) 
+            if (!validate_t_opt(optarg, &options->num_tables)) 
             {
                 return CMD_LINE_OPTS_FAILURE;
             }
             break;
         case 'o':
-            if (validate_o_opt(optarg, &options->opening_hour, &options->closing_hour, &c_flag) < 0) 
+            if (!validate_o_opt(optarg, &options->opening_hour, &options->closing_hour, &c_flag)) 
             {
                 return CMD_LINE_OPTS_FAILURE;
             }
             o_flag = 1;
             break;
         case 'c':
-            if (validate_c_opt(optarg, &options->closing_hour, &options->opening_hour, &o_flag) < 0) 
+            if (!validate_c_opt(optarg, &options->closing_hour, &options->opening_hour, &o_flag)) 
             {
                 return CMD_LINE_OPTS_FAILURE;
             }
             c_flag = 1;
             break;
         case 'p':
-            if (validate_p_opt(optarg, &options->port) < 0) 
+            if (!validate_p_opt(optarg, &options->port)) 
             {
                 return CMD_LINE_OPTS_FAILURE;
             }
             break;
         case 'm':
-            if (NULL == validate_m_opt(optarg, &options->menu_path)) 
+            if (!validate_m_opt(optarg, &options->menu_path)) 
             {
                 return CMD_LINE_OPTS_FAILURE;
             }
+            options->m_flag = FLAG_ON;
             break;
         case 'l':
-            if (NULL == validate_l_opt(optarg, &options->log_file)) 
+            if (!validate_l_opt(optarg, &options->log_file)) 
             {
                 return CMD_LINE_OPTS_FAILURE;
             }
@@ -443,13 +448,13 @@ void cleanup_options(cmd_line_options_t *options)
         return;
     }
     
-    if (options->menu_path != NULL && options->menu_path != MENU_FILE_DEFAULT)
-    {
-        free(options->menu_path);
-        options->menu_path = NULL;
-    }
+    if (NULL != options->menu_path && FLAG_ON == options->m_flag)
+        {
+            free(options->menu_path);
+            options->menu_path = NULL;
+        }
 
-    if (options->log_file != NULL && options->log_file != stderr)
+    if (NULL != options->log_file && stderr != options->log_file)
     {
         fclose(options->log_file);
         options->log_file = NULL;

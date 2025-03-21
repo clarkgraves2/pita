@@ -26,6 +26,8 @@
  * 
  * [char*] menu_path
  * 
+ * [int] m_flag
+ * 
  * [FILE*] log_file
  * 
  */
@@ -36,6 +38,7 @@ typedef struct
     int closing_hour;    
     int port;            
     char *menu_path;
+    int m_flag;
     FILE *log_file;      
 } cmd_line_options_t;
 
