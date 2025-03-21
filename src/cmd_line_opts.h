@@ -46,16 +46,41 @@ static int
 validate_t_opt(const char * arg, int * num_of_tables);
 
 /**
- * Validate the opening hour option
- */
-static int
-validate_o_opt(const char * arg, int * opening_hour, int * closing_hour, int * c_flag);
-
-/**
  * @param arg
  * @param opening_hour
  * @param closing_hour
  * @param c_flag
+ * @retval [true | false] for sucessful or failed validation.
+ * @brief
+ * Validates, and sets the '-o' parameter from getopt
+ * (or default value) to store the opening hour of the reservation
+ * system.
+ * 
+ * Process 
+ * 
+ * 1. Checks for early exit conditions that was to use the default value
+ * from get_opt to save from continuing through unneeded validation process.
+ * 
+ * 2. Need to make sure parameters haven't errored so that values provided by the 
+ * command line can be validated properly.
+ * 
+ * 3. Uses strtol to get input into (long) integer type then performs two checks 
+ * provided by strtol to make sure we are in a valid int range and wont overflow,
+ * and that there are not any invalid/special characters in the input value.
+ * 
+ * 4. Check the opening hour provided is in the valid range of closing hours.
+ * 
+ * 5. Check that closing hour isn't before the opening hour so that later when listing
+ * and manipulating reservations we won't get unexpected behavior. 
+ */
+static bool
+validate_o_opt(const char * arg, int * opening_hour, int * closing_hour, int * c_flag);
+
+/**
+ * @param arg
+ * @param closing_hour
+ * @param opening_hour
+ * @param o_flag
  * @retval [true | false] for sucessful or failed validation.
  * @brief
  * Validates, and sets the '-c' parameter from getopt

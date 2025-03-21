@@ -23,6 +23,8 @@
 #define FLAG_ON (1)
 #define CLOSE_HR_MAX (2300)
 #define CLOSE_HR_MIN (0100)
+#define OPEN_HR_MAX (2300)
+#define OPEN_HR_MIN (0)
 #define MIDNIGHT_HOUR (0)
 #define MINS_MODULO (100)
 
@@ -84,23 +86,18 @@ validate_t_opt(const char * arg, int * num_of_tables)
     return (int)table_value;
 }
 
-/**
- * Validate the opening hour option
- */
-static int
+static bool
 validate_o_opt(const char * arg, int * opening_hour, int * closing_hour, int * c_flag)
 {
-    if(NULL == opening_hour)
-    {
-        // log error
-        return PARAM_ERR;
-    }
-
     if(NULL == arg)
     {
-        // log default opening hour set.
-        *opening_hour = OPENING_HOUR_DEFAULT;
-        return OPENING_HOUR_DEFAULT;
+        return true;
+    }
+    
+    if(NULL == closing_hour || NULL == opening_hour || NULL == c_flag)
+    {
+        // log error
+        return false;
     }
 
     char * strtol_endptr;
@@ -111,40 +108,38 @@ validate_o_opt(const char * arg, int * opening_hour, int * closing_hour, int * c
     {
         // log error
         printf("Error: Number out of range of long value\n");
-        return STRTOL_CONV_ERR;
+        return false;
     }
 
-    if (*strtol_endptr != '\0') {
+    if ('\0' != *strtol_endptr) 
+    {
         // log error
         printf("Error: Invalid characters in opening hour value\n");
-        return INVALID_CHAR_ERR;
+        return false;
     }
 
-    if (open_hr_value < 0 || open_hr_value > 2300) 
+    if (OPEN_HR_MIN > open_hr_value || OPEN_HR_MAX < open_hr_value) 
     {
         // log error
         printf("Error: Opening hour must be between 0000 and 2300\n");
-        return TIME_RANGE_ERR;
+        return false;
     }
 
-    if(open_hr_value % 100 != 0)
+    if(0 != open_hr_value % MINS_MODULO)
     {
         // log error
         printf("Time format is on the hour every hour minutes will always be '00'");
-        return TIME_HAS_MINS_ERR;
+        return false;
     }
     
-    // Only do this check if closing hour has been set
-    if(c_flag != NULL && *c_flag != 0 && closing_hour != NULL && *closing_hour < open_hr_value)
+    if(FLAG_ON == *c_flag && *closing_hour > open_hr_value)
     {
         // log error
         printf("Error: Closing Time Cannot be before Opening Time\n");
         return CLOSE_BF_OPEN_ERR;
     }
 
-    // log opening hour set
-    *opening_hour = (int)open_hr_value;
-    return (int)open_hr_value;
+    return true;
 }
 
 static bool
