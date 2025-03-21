@@ -100,8 +100,9 @@ static bool validate_t_opt(const char *arg, int *num_of_tables)
 }
 
 /**
- * Helper function to determine if closing time is valid compared to opening
- * time
+ * Helper function to determine if closing time is in valid range and
+ * handles the midnight (0000) special case since we're treating time
+ * as integers.
  * @param opening_hour Opening hour value (0-2300)
  * @param closing_hour Closing hour value (0-2300, 0 means midnight)
  * @retval [true | false] for successful or failed validation.
