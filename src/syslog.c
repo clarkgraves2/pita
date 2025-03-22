@@ -118,6 +118,8 @@ bool syslog_write(FILE *log_file, log_type_t type, const char *custom_message)
     if (0 != pthread_mutex_lock(&log_mutex))
     {
         fprintf(stderr, "Failed to lock log mutex\n");
+        free(formatted_log);
+        formatted_log = NULL;
         return false;
     }
     

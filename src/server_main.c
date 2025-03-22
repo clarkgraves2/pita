@@ -20,13 +20,22 @@
 #define SETSOCKOPT_ERR (-1)
 #define BIND_ERR (-1)
 #define LISTEN_ERR (-1)
+#define SIGACTION_ERR (-1)
 #define BUFFER_SIZE (1024)
 
 static volatile sig_atomic_t serv_running = 1;
 
+static void sigint_received(int sig)
+{
+    // Standard supression of unused parameter warning from compiler
+    // because sig is required by function signatures of signal handlers in C. 
+    (void)sig; 
+    serv_running = 0;
+}
+
 int main(int argc, char *argv[])
 {
-    int server_socket_fd;
+    int server_socket_fd = -1;
     int getaddrinfo_ret_val;
     int sockopt_val = 1;
 
@@ -62,7 +71,8 @@ int main(int argc, char *argv[])
     {
         cleanup_options(options);
         free(options);
-        options = NULL;
+        free(hints);
+        free(get_addr_port_str);
         return EXIT_SUCCESS;
     }
 
@@ -82,6 +92,7 @@ int main(int argc, char *argv[])
     hints->ai_socktype = SOCK_STREAM; 
     hints->ai_flags = AI_PASSIVE; 
 
+    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     int written = snprintf(get_addr_port_str, PORT_STR_BUFFER, "%d", options->port);
 
     if (0 > written) 
@@ -122,6 +133,14 @@ int main(int argc, char *argv[])
         goto cleanup;
     }
 
+    struct sigaction sa = {0};
+    sa.sa_handler = sigint_received;
+    if (SIGACTION_ERR == (sigaction(SIGINT, &sa, NULL))) 
+    {
+        syslog_write(log_file, ERROR, "Failed to register SIGINT handler");
+        goto cleanup;
+    }
+
     
 
     syslog_write(log_file, INFO, "Server shutting down gracefully");
@@ -129,13 +148,15 @@ int main(int argc, char *argv[])
     close(server_socket_fd);
     cleanup_options(options);
     free(options);
+    options = NULL;
     free(get_addr_port_str);
+    get_addr_port_str = NULL;
     free(hints);
+    hints = NULL;
 
     return EXIT_SUCCESS;
 
-    cleanup:
-    // Check each pointer before freeing
+cleanup:
     if (hints != NULL) 
     {
         free(hints);
