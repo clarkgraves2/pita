@@ -1,6 +1,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
@@ -83,7 +84,7 @@ bool syslog_init(FILE *log_file)
         return false;
     }
 
-    if (0 > (fprintf(log_file, ""))) 
+    if (0 > (fprintf(log_file, "%s", "")))
     {
         fprintf(stderr, "Log file is not writable\n");
         return false;
@@ -107,7 +108,12 @@ bool syslog_write(FILE *log_file, log_type_t type, const char *custom_message)
         return false;
     }
 
-    char formatted_log[SYSLOG_LOG_BUFFER];
+    char *formatted_log = calloc(1, SYSLOG_LOG_BUFFER);
+    if (NULL == formatted_log) 
+    {
+        fprintf(stderr, "Failed to allocate memory for log message\n");
+        return false;
+    }
     
     if (0 != pthread_mutex_lock(&log_mutex))
     {
@@ -135,11 +141,15 @@ bool syslog_write(FILE *log_file, log_type_t type, const char *custom_message)
         goto cleanup;
     }
 
+    free(formatted_log);
+    formatted_log = NULL;
     pthread_mutex_unlock(&log_mutex);
 
     return true;
 
 cleanup:
+    free(formatted_log);
+    formatted_log = NULL;
     pthread_mutex_unlock(&log_mutex);
     return false;
 }
