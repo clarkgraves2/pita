@@ -57,8 +57,14 @@ static bool assemble_log_message(log_type_t type, const char* custom_message,
         return false;
     }
 
+    
+    // Justification for supression: I'm using snprint securely by passing in the buffer size
+    // that i've defined as well as checking to make sure what was written doesn't exceed
+    // the buffer size of the log message.
+    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     int written_to_buffer = snprintf(buffer, buffer_size, "[%s] [%s] %s\n",
                                     timestamp, LOG_TYPE_STRINGS[type], custom_message);
+
 
     if (0 > written_to_buffer || buffer_size < (size_t)written_to_buffer)
     {
