@@ -1,14 +1,14 @@
-
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include <time.h>
 
 #include "syslog.h"
 
 #define SYSLOG_LOG_BUFFER          (1024)
 #define SYSLOG_TIMESTAMP_SIZE      (32)
-#define SYSLOG_TIMESTAMP_FORMAT ("%Y-%m-%d %H:%M:%S")
+#define SYSLOG_TIMESTAMP_FORMAT    ("%Y-%m-%d %H:%M:%S")
 
 static const char *LOG_TYPE_STRINGS[TYPE_COUNT] = 
 {
@@ -21,92 +21,133 @@ static const char *LOG_TYPE_STRINGS[TYPE_COUNT] =
 
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static char * assemble_log_message(log_type_t type, const char * custom_message)
+static bool assemble_log_message(log_type_t type, const char* custom_message, 
+                                 char* buffer, size_t buffer_size)
 {
-    if(TYPE_COUNT < type)
+    if ( TYPE_COUNT <= type || NULL == custom_message || NULL == buffer)
     {
-        fprintf(stderr, "Invalid Log Type");
-        return NULL;
+        fprintf(stderr, "Syslog write parameters invalid, check write parameters\n");
+        return false;
     }
 
-    char * assembled_log[SYSLOG_LOG_BUFFER];
+    if (buffer_size < SYSLOG_LOG_BUFFER) 
+    {
+        fprintf(stderr, "Buffer size too small for log message\n");
+        return false;
+    }
 
     time_t utc_time_now = time(NULL);
-    if((time_t)-1 == utc_time_now)
+    if ((time_t)-1 == utc_time_now)
     {
-        fprintf(stderr, "Failed to get UTC Time");
-        return NULL;
+        fprintf(stderr, "Failed to get UTC Time\n");
+        return false;
     }
 
     struct tm time_data;
     if (NULL == localtime_r(&utc_time_now, &time_data))
     {
-        fprintf(stderr, "Failed to convert UTC time to Local Time");
-        return NULL;
+        fprintf(stderr, "Failed to convert UTC time to Local Time\n");
+        return false;
     }
 
     char timestamp[SYSLOG_TIMESTAMP_SIZE];
     if (0 == strftime(timestamp, sizeof(timestamp), SYSLOG_TIMESTAMP_FORMAT, &time_data))
     {
         fprintf(stderr, "Failed to format timestamp\n");
-        return NULL;
+        return false;
     }
 
-    int written_to_buffer = snprintf(assembled_log, SYSLOG_LOG_BUFFER, "[%s] [%s] %s\n",
+    int written_to_buffer = snprintf(buffer, buffer_size, "[%s] [%s] %s\n",
                                     timestamp, LOG_TYPE_STRINGS[type], custom_message);
 
-    if(0 > written_to_buffer || SYSLOG_LOG_BUFFER <= written_to_buffer)
+    if (0 > written_to_buffer || buffer_size < (size_t)written_to_buffer)
     {
-        fprintf(stderr, "Failed to assemble log message or log message size over limit");
-        return NULL;
+        fprintf(stderr, "Failed to assemble log message or log message size over limit\n");
+        return false;
     }
 
-    return assembled_log;
+    return true;
 }
 
 bool syslog_init(FILE *log_file)
 {
     if (NULL == log_file)
     {
-        fprintf(stderr, "Syslog_init log file failed to init");
+        fprintf(stderr, "Syslog_init log file failed to init\n");
         return false;
     }
 
-    fprintf(stderr, "Syslog initiated successfully");
+    if (0 > (fprintf(log_file, ""))) 
+    {
+        fprintf(stderr, "Log file is not writable\n");
+        return false;
+    }
+
+    fprintf(log_file, "Syslog initialized successfully\n");
+    if (0 != fflush(log_file)) 
+    {
+        fprintf(stderr, "Failed to flush log file\n");
+        return false;
+    }
 
     return true;
 }
 
 bool syslog_write(FILE *log_file, log_type_t type, const char *custom_message)
 {
-    if (NULL == log_file || NULL == type || NULL == custom_message)
+    if (NULL == log_file || type >= TYPE_COUNT || NULL == custom_message)
     {
-        fprintf(stderr,
-                "Syslog write parameters invalid, check write parameters");
+        fprintf(stderr, "Syslog write parameters invalid, check write parameters\n");
         return false;
     }
 
-    pthread_mutex_lock(&log_mutex);
-    const char* formatted_log = assemble_log_message(type, custom_message);
-    if (NULL == formatted_log)
+    char formatted_log[SYSLOG_LOG_BUFFER];
+    
+    if (0 != pthread_mutex_lock(&log_mutex))
     {
-        fprintf(stderr, "assemble_log_message() failed");
+        fprintf(stderr, "Failed to lock log mutex\n");
         return false;
     }
     
-    if (0 > (fputs(formatted_log, log_file)))
+    bool format_success = assemble_log_message(type, custom_message, 
+                                              formatted_log, SYSLOG_LOG_BUFFER);
+    if (!format_success)
+    {
+        fprintf(stderr, "assemble_log_message() failed\n");
+        goto cleanup;
+    }
+    
+    if (0 > fputs(formatted_log, log_file))
     {
         fprintf(stderr, "Failed to write formatted log to log file\n");
-        return false;
+        goto cleanup;
     }
     
-    fflush(log_file);
+    if (0 != fflush(log_file)) 
+    {
+        fprintf(stderr, "Failed to flush log file\n");
+        goto cleanup;
+    }
+
     pthread_mutex_unlock(&log_mutex);
 
+    return true;
+
+cleanup:
+    pthread_mutex_unlock(&log_mutex);
     return false;
 }
 
-bool syslog_cleanup()
+bool syslog_cleanup(void)
 {
+    int result = pthread_mutex_destroy(&log_mutex);
+    if (0 != result)
+    {
+        fprintf(stderr, "Failed to destroy log mutex: %d\n", result);
+        return false;
+    }
     
+    return true;
 }
+
+/*** end of file ***/
