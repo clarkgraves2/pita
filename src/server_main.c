@@ -20,6 +20,9 @@
 #define SETSOCKOPT_ERR (-1)
 #define BIND_ERR (-1)
 #define LISTEN_ERR (-1)
+#define BUFFER_SIZE (1024)
+
+static volatile sig_atomic_t serv_running = 1;
 
 int main(int argc, char *argv[])
 {
@@ -60,47 +63,102 @@ int main(int argc, char *argv[])
     if (0 > written) 
     {
         syslog_write(log_file, ERROR, "int to str conversion failed\n");
-        // go to
+        goto cleanup;
     }
 
     getaddrinfo_ret_val = getaddrinfo(NULL, get_addr_port_str, &hints, &getaddr_res);
     if (0 != getaddrinfo_ret_val)
     {
         syslog_write(log_file, ERROR, "Failed to get address info");
-        // go to
+        goto cleanup;
     }
 
     server_socket_fd = socket(getaddr_res->ai_family,getaddr_res->ai_socktype,getaddr_res->ai_protocol);
     if (SOCK_ASSIGN_ERR == server_socket_fd)
     {
         syslog_write(log_file, ERROR, "Failed to create socket");
-        // go to
+        goto cleanup;
     }
 
     if (SETSOCKOPT_ERR == setsockopt(server_socket_fd, SOL_SOCKET, SO_REUSEADDR, &sockopt_val, sizeof(sockopt_val)))
     {
         syslog_write(log_file, ERROR, "Failed to set socket options");
-        // go to
+        goto cleanup;
     }
 
     if (BIND_ERR == bind(server_socket_fd, getaddr_res->ai_addr, getaddr_res->ai_addrlen))
     {
         syslog_write(log_file, ERROR, "Failed to bind socket");
-        // go to
+        goto cleanup;
     }
 
     if (LISTEN_ERR == listen(server_socket_fd, SOMAXCONN))
     {
         syslog_write(log_file, ERROR, "Failed to listen on socket");
-        // go to
+        goto cleanup;
     }
 
-    fprintf(options.log_file, "Server shutting down gracefully\n");
+    while (serv_running)
+    {
+        // Accept connection
+        struct sockaddr_in client_addr;
+        socklen_t addr_len = sizeof(client_addr);
+        int client_fd = accept(server_socket_fd, (struct sockaddr*)&client_addr, &addr_len);
+        
+        if (client_fd < 0)
+        {
+            if (EINTR == errno)
+            {
+    
+                continue;
+            }
+            syslog_write(log_file, ERROR, "Accept failed");
+            continue;
+        }
+        
+   
+        char client_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(client_addr.sin_addr), client_ip, INET_ADDRSTRLEN);
+        
+        char log_msg[BUFFER_SIZE];
+        snprintf(log_msg, sizeof(log_msg), "Connection from %s:%d", 
+                 client_ip, ntohs(client_addr.sin_port));
+        syslog_write(log_file, CONN, log_msg);
+        printf("New connection from %s:%d\n", client_ip, ntohs(client_addr.sin_port));
+        
+   
+        char buffer[BUFFER_SIZE] = {0};
+        ssize_t bytes_read = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+        
+        if (bytes_read > 0)
+        {
+            buffer[bytes_read] = '\0';
+            printf("Received: %s\n", buffer);
+            
+            const char *response = "Hello from server!\n";
+            send(client_fd, response, strlen(response), 0);
+        }
+        
+
+        close(client_fd);
+    }
+    
+    close(server_socket_fd);
+    
+    syslog_write(log_file, INFO, "Server shutting down gracefully");
     cleanup_options(&options);
     return EXIT_SUCCESS;
 
 cleanup:
-    syslog_cleanup();
+    if (NULL != getaddr_res)
+    {
+        freeaddrinfo(getaddr_res);
+    }
+
+    if (0 <= server_socket_fd)
+    {
+        close(server_socket_fd);
+    }
     cleanup_options(&options);
     return EXIT_FAILURE;
 }

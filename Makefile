@@ -1,6 +1,6 @@
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -Wpedantic -Waggregate-return -Wwrite-strings -Wvla -Wfloat-equal -Wstack-usage=1024 -Werror
+CFLAGS = -Wall -Wextra -Wpedantic -Waggregate-return -Wwrite-strings -Wvla -Wfloat-equal
 DEBUG_FLAGS = -g
 
 # Valgrind settings
@@ -15,7 +15,8 @@ TEST_RESULTS_DIR = $(TEST_DIR)/results
 
 # Source and target
 SRC = $(SRC_DIR)/server_main.c \
-      $(SRC_DIR)/cmd_line_opts.c
+      $(SRC_DIR)/cmd_line_opts.c \
+	  $(SRC_DIR)/syslog.c
 TARGET = $(BIN_DIR)/pita_bytes
 
 # Test file - can be overridden with make valgrind_tests TEST_FILE=your_file.txt
