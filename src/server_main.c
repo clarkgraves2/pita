@@ -16,14 +16,19 @@
 #include "syslog.h"
 
 #define PORT_STR_BUFFER (6)
+#define SOCK_ASSIGN_ERR (-1)
+#define SETSOCKOPT_ERR (-1)
+#define BIND_ERR (-1)
+#define LISTEN_ERR (-1)
 
 int main(int argc, char *argv[])
 {
     cmd_line_options_t options;
-    int server_fd;
+    int server_socket_fd;
     int getaddrinfo_ret_val;
+    int sockopt_val = 1;
     struct addrinfo hints = {0};
-    struct addrinfo *result = NULL;
+    struct addrinfo *getaddr_res = NULL;
     char get_addr_port_str[PORT_STR_BUFFER];
 
     int options_result = validate_and_set_options(argc, argv, &options);
@@ -54,15 +59,34 @@ int main(int argc, char *argv[])
 
     if (0 > written) 
     {
-        syslog_write(log_file, "int to str conversion failed\n");
-        return EXIT_FAILURE;
+        syslog_write(log_file, ERROR, "int to str conversion failed\n");
+        // go to
     }
 
-    getaddrinfo_ret_val = getaddrinfo(NULL, get_addr_port_str, &hints, &result);
+    getaddrinfo_ret_val = getaddrinfo(NULL, get_addr_port_str, &hints, &getaddr_res);
     if (0 != getaddrinfo_ret_val)
     {
         syslog_write(log_file, ERROR, "Failed to get address info");
-        // go to?
+        // go to
+    }
+
+    server_socket_fd = socket(getaddr_res->ai_family,getaddr_res->ai_socktype,getaddr_res->ai_protocol);
+    if (SOCK_ASSIGN_ERR == server_socket_fd)
+    {
+        syslogwrite(log_file, ERROR, "Failed to create socket");
+        // go to
+    }
+
+    if (SETSOCKOPT_ERR == setsockopt(server_socket_fd, SOL_SOCKET, SO_REUSEADDR, &sockopt_val, sizeof(sockopt_val)))
+    {
+        syslog_write(log_file, ERROR, "Failed to set socket options");
+        // go to
+    }
+
+    if (BIND_ERR == bind(server_socket_fd, getaddr_res->ai_addr, getaddr_res->ai_addrlen))
+    {
+        syslog_write(log_file, ERROR, "Failed to bind socket");
+        // go to
     }
 
 
