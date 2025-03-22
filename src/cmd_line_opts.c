@@ -59,13 +59,11 @@ static bool validate_t_opt(const char *arg, int *num_of_tables)
 {
     if (NULL == arg)
     {
-        // log default num of tables set.
         return true;
     }
 
     if (NULL == num_of_tables)
     {
-        // log error
         return false;
     }
 
@@ -75,26 +73,22 @@ static bool validate_t_opt(const char *arg, int *num_of_tables)
 
     if (ERANGE == errno)
     {
-        // log error
         printf("Error: Number out of range of long value\n");
         return false;
     }
 
     if ('\0' != *strtol_endptr)
     {
-        // log error
         printf("Error: Invalid characters in table value\n");
         return false;
     }
 
     if (MIN_TABLES > table_value || INT_MAX < table_value)
     {
-        // log error
         printf("Error: Table value must be between 1 and system's INT_MAX \n");
         return false;
     }
 
-    // log num of tables set
     *num_of_tables = (int)table_value;
     return true;
 }
@@ -160,7 +154,6 @@ static bool validate_o_opt(const char *arg,
 
     if (NULL == closing_hour || NULL == opening_hour || NULL == c_flag)
     {
-        // log error
         return false;
     }
 
@@ -170,28 +163,24 @@ static bool validate_o_opt(const char *arg,
 
     if (ERANGE == errno)
     {
-        // log error
         printf("Error: Number out of range of long value\n");
         return false;
     }
 
     if ('\0' != *strtol_endptr)
     {
-        // log error
         printf("Error: Invalid characters in opening hour value\n");
         return false;
     }
 
     if (OPEN_HR_MIN > open_hr_value || OPEN_HR_MAX < open_hr_value)
     {
-        // log error
         printf("Error: Opening hour must be between 0000 and 2300\n");
         return false;
     }
 
     if (0 != open_hr_value % MINS_MODULO)
     {
-        // log error
         printf("Time format is on the hour every hour minutes will always be "
                "'00'");
         return false;
@@ -199,10 +188,8 @@ static bool validate_o_opt(const char *arg,
 
     if (FLAG_ON == *c_flag)
     {
-        // Use the helper function to validate time range
         if (!is_valid_time_range(open_hr_value, *closing_hour))
         {
-            // log error
             printf("Error: Closing Time Cannot be before Opening Time\n");
             return false;
         }
@@ -254,7 +241,6 @@ static bool validate_c_opt(const char *arg,
 
     if (NULL == closing_hour || NULL == opening_hour || NULL == o_flag)
     {
-        // log error
         return false;
     }
 
@@ -264,28 +250,24 @@ static bool validate_c_opt(const char *arg,
 
     if (ERANGE == errno)
     {
-        // log error
         printf("Error: Number out of range of long value\n");
         return false;
     }
 
     if ('\0' != *strtol_endptr)
     {
-        // log error
         printf("Error: Invalid characters in opening hour value\n");
         return false;
     }
 
     if (close_hr_value < 0)
     {
-        // log error
         printf("Error: Closing hour cannot be negative\n");
         return false;
     }
 
     if (0 != (close_hr_value % MINS_MODULO))
     {
-        // log error
         printf("Time format is on the hour every hour minutes will always be "
                "'00'");
         return false;
@@ -294,14 +276,12 @@ static bool validate_c_opt(const char *arg,
     if (CLOSE_HR_MAX < close_hr_value ||
         (CLOSE_HR_MIN > close_hr_value && MIDNIGHT_HOUR < close_hr_value))
     {
-        // log error
         printf("Error: Closing hour must be between 0100 and 2300, or 0000\n");
         return false;
     }
 
     if (FLAG_ON == *o_flag)
     {
-        // Use the helper function to validate time range
         if (!is_valid_time_range(*opening_hour, close_hr_value))
         {
             printf("Error: Closing Time Cannot be before Opening Time\n");
@@ -309,7 +289,6 @@ static bool validate_c_opt(const char *arg,
         }
     }
 
-    // log closing hour set
     *closing_hour = (int)close_hr_value;
     return true;
 }
@@ -361,8 +340,6 @@ static bool validate_p_opt(const char *arg, int *port_input)
 
     if (NULL == port_input)
     {
-        // log error using printf for consistency with other validation
-        // functions
         printf("Error: Invalid parameter for port value\n");
         return false;
     }
@@ -373,26 +350,22 @@ static bool validate_p_opt(const char *arg, int *port_input)
 
     if (ERANGE == errno)
     {
-        // log error using printf for consistency
         printf("Error: Number out of range of long value\n");
         return false;
     }
 
     if ('\0' != *strtol_endptr)
     {
-        // log error using printf for consistency
         printf("Error: Invalid characters in port value\n");
         return false;
     }
 
     if (MIN_PORT_NUM > port_num_value || MAX_PORT_NUM < port_num_value)
     {
-        // log error using printf for consistency
         printf("Error: Invalid Port Number Must be between 0 and 65535\n");
         return false;
     }
 
-    // log port set
     *port_input = (int)port_num_value;
     return true;
 }
@@ -462,14 +435,12 @@ static bool validate_m_opt(const char *arg, char **menu_path)
 
     if (NULL == arg)
     {
-        // log default menu file set
         result = true;
         goto cleanup;
     }
 
     if (NULL == menu_path)
     {
-        // log error
         printf("Error: Invalid parameter for menu path\n");
         goto cleanup;
     }
@@ -482,7 +453,6 @@ static bool validate_m_opt(const char *arg, char **menu_path)
     temp_file = fopen(arg, "r");
     if (NULL == temp_file)
     {
-        // log error
         printf("Error: Menu file not found at %s\n", arg);
         goto cleanup;
     }
@@ -490,7 +460,6 @@ static bool validate_m_opt(const char *arg, char **menu_path)
     *menu_path = strdup(arg);
     if (NULL == *menu_path)
     {
-        // log error
         printf("Error: Memory allocation failed for menu path\n");
         goto cleanup;
     }
