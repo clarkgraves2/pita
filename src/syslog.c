@@ -19,8 +19,6 @@ static const char *LOG_TYPE_STRINGS[TYPE_COUNT] =
     "LOGIN",
 };
 
-
-
 static char * assemble_log_message(log_type_t type, const char * custom_message)
 {
     if(TYPE_COUNT < type)
@@ -86,7 +84,22 @@ bool syslog_write(FILE *log_file, log_type_t type, const char *custom_message)
         return false;
     }
 
-  
+    const char* formatted_log = assemble_log_message(type, custom_message);
+    if (NULL == formatted_log)
+    {
+        fprintf(stderr, "assemble_log_message() failed");
+        return false;
+    }
+    
+    if (0 > (fputs(formatted_log, log_file)))
+    {
+        fprintf(stderr, "Failed to write formatted log to log file\n");
+        return false;
+    }
+    
+    fflush(log_file);
+    
+    return false;
 }
 
 bool syslog_cleanup()
