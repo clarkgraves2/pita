@@ -19,6 +19,8 @@ static const char *LOG_TYPE_STRINGS[TYPE_COUNT] =
     "LOGIN",
 };
 
+static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 static char * assemble_log_message(log_type_t type, const char * custom_message)
 {
     if(TYPE_COUNT < type)
@@ -84,6 +86,7 @@ bool syslog_write(FILE *log_file, log_type_t type, const char *custom_message)
         return false;
     }
 
+    pthread_mutex_lock(&log_mutex);
     const char* formatted_log = assemble_log_message(type, custom_message);
     if (NULL == formatted_log)
     {
@@ -98,10 +101,12 @@ bool syslog_write(FILE *log_file, log_type_t type, const char *custom_message)
     }
     
     fflush(log_file);
-    
+    pthread_mutex_unlock(&log_mutex);
+
     return false;
 }
 
 bool syslog_cleanup()
 {
+    
 }
