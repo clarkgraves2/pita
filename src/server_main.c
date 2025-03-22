@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
     server_socket_fd = socket(getaddr_res->ai_family,getaddr_res->ai_socktype,getaddr_res->ai_protocol);
     if (SOCK_ASSIGN_ERR == server_socket_fd)
     {
-        syslogwrite(log_file, ERROR, "Failed to create socket");
+        syslog_write(log_file, ERROR, "Failed to create socket");
         // go to
     }
 
@@ -89,7 +89,11 @@ int main(int argc, char *argv[])
         // go to
     }
 
-
+    if (LISTEN_ERR == listen(server_socket_fd, SOMAXCONN))
+    {
+        syslog_write(log_file, ERROR, "Failed to listen on socket");
+        // go to
+    }
 
     fprintf(options.log_file, "Server shutting down gracefully\n");
     cleanup_options(&options);
