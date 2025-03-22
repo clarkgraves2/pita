@@ -20,25 +20,59 @@
 #define SETSOCKOPT_ERR (-1)
 #define BIND_ERR (-1)
 #define LISTEN_ERR (-1)
+#define SIGACTION_ERR (-1)
 #define BUFFER_SIZE (1024)
 
 static volatile sig_atomic_t serv_running = 1;
 
+static void sigint_received(int sig)
+{
+    // Standard supression of unused parameter warning from compiler
+    // because sig is required by function signatures of signal handlers in C. 
+    (void)sig; 
+    serv_running = 0;
+}
+
 int main(int argc, char *argv[])
 {
-    cmd_line_options_t options;
-    int server_socket_fd;
+    int server_socket_fd = -1;
     int getaddrinfo_ret_val;
     int sockopt_val = 1;
-    struct addrinfo hints = {0};
-    struct addrinfo *getaddr_res = NULL;
-    char get_addr_port_str[PORT_STR_BUFFER];
 
-    int options_result = validate_and_set_options(argc, argv, &options);
+    struct addrinfo *hints = calloc(1, sizeof(struct addrinfo));
+    if (NULL == hints) 
+    {
+        fprintf(stderr, "hints memory allocation failed\n");
+        return EXIT_FAILURE;
+    }
+    
+    struct addrinfo *getaddr_res = NULL;
+    
+    char *get_addr_port_str = calloc(1, PORT_STR_BUFFER);
+    if (NULL == get_addr_port_str) 
+    {
+        fprintf(stderr, "get_addr_port_str memory allocation failed\n");
+        free(hints);
+        return EXIT_FAILURE;
+    }
+
+    cmd_line_options_t *options = calloc(1, sizeof(cmd_line_options_t));
+    if (NULL == options) 
+    {
+        fprintf(stderr, "cmd_line_options_t memory allocation failed\n");
+        free(hints);
+        free(get_addr_port_str);
+        return EXIT_FAILURE;
+    }
+
+    int options_result = validate_and_set_options(argc, argv, options);
 
     if (options_result == CMD_LINE_OPTS_HELP)
     {
-        cleanup_options(&options);
+        cleanup_options(options);
+        free(options);
+        free(hints);
+        free(get_addr_port_str);
         return EXIT_SUCCESS;
     }
 
@@ -47,18 +81,19 @@ int main(int argc, char *argv[])
        goto cleanup;
     }
 
-    FILE * log_file = options.log_file;
+    FILE * log_file = options->log_file;
 
     if(!syslog_init(log_file))
     {
         goto cleanup;
     }
 
-    hints.ai_family = AF_INET;        
-    hints.ai_socktype = SOCK_STREAM; 
-    hints.ai_flags = AI_PASSIVE; 
+    hints->ai_family = AF_INET;        
+    hints->ai_socktype = SOCK_STREAM; 
+    hints->ai_flags = AI_PASSIVE; 
 
-    int written = snprintf(get_addr_port_str, sizeof(get_addr_port_str), "%d", options.port);
+    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+    int written = snprintf(get_addr_port_str, PORT_STR_BUFFER, "%d", options->port);
 
     if (0 > written) 
     {
@@ -66,7 +101,7 @@ int main(int argc, char *argv[])
         goto cleanup;
     }
 
-    getaddrinfo_ret_val = getaddrinfo(NULL, get_addr_port_str, &hints, &getaddr_res);
+    getaddrinfo_ret_val = getaddrinfo(NULL, get_addr_port_str, hints, &getaddr_res);
     if (0 != getaddrinfo_ret_val)
     {
         syslog_write(log_file, ERROR, "Failed to get address info");
@@ -98,68 +133,56 @@ int main(int argc, char *argv[])
         goto cleanup;
     }
 
-    while (serv_running)
+    struct sigaction sa = {0};
+    sa.sa_handler = sigint_received;
+    if (SIGACTION_ERR == (sigaction(SIGINT, &sa, NULL))) 
     {
-        // Accept connection
-        struct sockaddr_in client_addr;
-        socklen_t addr_len = sizeof(client_addr);
-        int client_fd = accept(server_socket_fd, (struct sockaddr*)&client_addr, &addr_len);
-        
-        if (client_fd < 0)
-        {
-            if (EINTR == errno)
-            {
-    
-                continue;
-            }
-            syslog_write(log_file, ERROR, "Accept failed");
-            continue;
-        }
-        
-   
-        char client_ip[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &(client_addr.sin_addr), client_ip, INET_ADDRSTRLEN);
-        
-        char log_msg[BUFFER_SIZE];
-        snprintf(log_msg, sizeof(log_msg), "Connection from %s:%d", 
-                 client_ip, ntohs(client_addr.sin_port));
-        syslog_write(log_file, CONN, log_msg);
-        printf("New connection from %s:%d\n", client_ip, ntohs(client_addr.sin_port));
-        
-   
-        char buffer[BUFFER_SIZE] = {0};
-        ssize_t bytes_read = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-        
-        if (bytes_read > 0)
-        {
-            buffer[bytes_read] = '\0';
-            printf("Received: %s\n", buffer);
-            
-            const char *response = "Hello from server!\n";
-            send(client_fd, response, strlen(response), 0);
-        }
-        
-
-        close(client_fd);
+        syslog_write(log_file, ERROR, "Failed to register SIGINT handler");
+        goto cleanup;
     }
+
     
-    close(server_socket_fd);
-    
+
     syslog_write(log_file, INFO, "Server shutting down gracefully");
-    cleanup_options(&options);
+    freeaddrinfo(getaddr_res);
+    close(server_socket_fd);
+    cleanup_options(options);
+    free(options);
+    options = NULL;
+    free(get_addr_port_str);
+    get_addr_port_str = NULL;
+    free(hints);
+    hints = NULL;
+
     return EXIT_SUCCESS;
 
 cleanup:
-    if (NULL != getaddr_res)
+    if (hints != NULL) 
+    {
+        free(hints);
+        hints = NULL;
+    }
+    if (get_addr_port_str != NULL) 
+    {
+        free(get_addr_port_str);
+        get_addr_port_str = NULL;
+    }
+    if (options != NULL) 
+    {
+        cleanup_options(options);
+        free(options);
+        options = NULL;
+    }
+    if (getaddr_res != NULL) 
     {
         freeaddrinfo(getaddr_res);
+        getaddr_res = NULL;
     }
-
-    if (0 <= server_socket_fd)
+    if (server_socket_fd >= 0) 
     {
         close(server_socket_fd);
     }
-    cleanup_options(&options);
+    
     return EXIT_FAILURE;
 }
 
