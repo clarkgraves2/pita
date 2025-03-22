@@ -19,7 +19,7 @@ static const char *LOG_TYPE_STRINGS[TYPE_COUNT] =
     "LOGIN",
 };
 
-static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 
 static char * assemble_log_message(log_type_t type, const char * custom_message)
 {
@@ -86,22 +86,7 @@ bool syslog_write(FILE *log_file, log_type_t type, const char *custom_message)
         return false;
     }
 
-    const char * formatted_log_message = assemble_log_message(type, custom_message);
-    if (NULL == formatted_log_message)
-    {
-        fprintf(stderr, "assemble_log_message() failed");
-        return false;
-    }
-
-    if (0 > fputs(formatted_log_message, log_file))
-    {
-        fprintf(stderr,"Failed to write formatted log message to log file");
-        return false;
-    }
-
-    fflush(log_file);
-
-    return true;
+  
 }
 
 bool syslog_cleanup()
