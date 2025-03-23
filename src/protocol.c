@@ -15,6 +15,7 @@
 #define USER_AND_PASS_OFFSET (4)
 #define TIME_AND_DATELEN_OFFSET (4)
 #define USER_AND_PADD_OFFSET (4)
+#define PADD_DATELEN_OFFSET (4)
 #define USERNAME_MAX_LEN (256)
 #define PASSWORD_MAX_LEN (256)
 #define UINT16_FIELD_OFFSET (2)
@@ -67,7 +68,7 @@ static bool validate_user_command_fields(const header_t *header, const void *dat
     return true;
 }
 
-static validate_reservation_command_fields(const header_t *header, const void *data, size_t length)
+static bool validate_reservation_command_fields(const header_t *header, const void *data, size_t length)
 {
     if (0x01 < header->flag)
     {
@@ -93,7 +94,7 @@ static validate_reservation_command_fields(const header_t *header, const void *d
     return true;
 }
 
-static validate_bookings_fields(const header_t *header, const void *data, size_t length)
+static bool validate_bookings_fields(const header_t *header, const void *data, size_t length)
 {
     if((sizeof(header_t) + USER_AND_PADD_OFFSET) > length)
     {
@@ -104,13 +105,30 @@ static validate_bookings_fields(const header_t *header, const void *data, size_t
     return true;
 }
 
-static validate_list_fields(data, length)
+static bool validate_list_fields(const header_t *header, const void *data, size_t length)
+{
+    if (sizeof(header_t) + PADD_DATELEN_OFFSET > length)
+    {
+        syslog_write(log_file, ERROR, "Header invalid, padding or date_string_len");
+        return false;
+    }
+
+    const uint8_t *padd_date_data = (const uint8_t *)data + sizeof(header_t);
+    uint16_t date_string_len = ntohs(*(uint16_t *)(padd_date_data + UINT16_FIELD_OFFSET));
+
+    if(sizeof(header_t) + PADD_DATELEN_OFFSET + date_string_len > length)
+    {
+        syslog_write(log_file, ERROR, "Message recieved size not complete for date length expected");
+        return false;
+    }
+
+    return true;
+}
+
+
+static bool validate_menu_fields(const header_t *header, const void *data, size_t length)
 {
     
-}
-static validate_menu_fields(data, length)
-{
-
 }
 
 
