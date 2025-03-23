@@ -14,6 +14,7 @@
 
 #define USER_AND_PASS_OFFSET (4)
 #define TIME_AND_DATELEN_OFFSET (4)
+#define USER_AND_PADD_OFFSET (4)
 #define USERNAME_MAX_LEN (256)
 #define PASSWORD_MAX_LEN (256)
 #define UINT16_FIELD_OFFSET (2)
@@ -43,7 +44,7 @@ static bool validate_user_command_fields(const header_t *header, const void *dat
 
     if (sizeof(header_t) + USER_AND_PASS_OFFSET > length)
     {
-        syslog_write(log_file, ERROR, "Only header sent, no username_len or password_len");
+        syslog_write(log_file, ERROR, "Header invalid, no username_len or password_len");
         return false;
     }
 
@@ -76,7 +77,7 @@ static validate_reservation_command_fields(const header_t *header, const void *d
 
     if((sizeof(header_t) + TIME_AND_DATELEN_OFFSET) > length)
     {
-        syslog_write(log_file, ERROR, "Only header sent, no time or date_string_len sent");
+        syslog_write(log_file, ERROR, "Header invalid, no time or date_string_len sent");
         return false;
     }
 
@@ -92,13 +93,20 @@ static validate_reservation_command_fields(const header_t *header, const void *d
     return true;
 }
 
-static validate_bookings_fields(data, length)
+static validate_bookings_fields(const header_t *header, const void *data, size_t length)
 {
+    if((sizeof(header_t) + USER_AND_PADD_OFFSET) > length)
+    {
+        syslog_write(log_file, ERROR, "Header invalid, no optional username_len field or padding");
+        return false;
+    }
 
+    return true;
 }
+
 static validate_list_fields(data, length)
 {
-
+    
 }
 static validate_menu_fields(data, length)
 {
