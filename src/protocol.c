@@ -12,6 +12,10 @@
 #include "protocol.h"
 #include "syslog.h"
 
+#define USER_AND_PASS_OFFSET (4)
+#define USERNAME_MAX_LEN (256)
+#define PASSWORD_MAX_LEN (256)
+
 typedef struct __attribute__((packed))
 {
     uint8_t op_code;
@@ -27,9 +31,56 @@ typedef struct __attribute__((packed))
 static cmd_line_options_t *protocol_configs = NULL;
 static FILE * log_file = NULL;
 
-static validate_user_command_header_fields()
+static bool validate_user_command_fields(const header_t *header, const void *data, size_t length)
+{
+    if (0x02 < header->flag)
+    {
+        syslog_write(log_file, ERROR, "Invalid flag for user command message");
+        return false;
+    }
 
+    if (sizeof(header_t) + USER_AND_PASS_OFFSET > length)
+    {
+        syslog_write(log_file, ERROR, "Only header sent, no username_len or password_len");
+        return false;
+    }
 
+    const uint8_t *user_pass_data = (const uint8_t *)data + sizeof(header_t);
+    uint16_t username_len = ntohs(*(uint16_t *)(user_pass_data));
+    uint16_t password_len = ntohs(*(uint16_t *)(user_pass_data + 2));
+    
+    if (sizeof(header_t) + USER_AND_PASS_OFFSET + username_len + password_len > length) 
+    {
+        syslog_write(log_file, ERROR, "Message recieved size not complete for message length needed");
+        return false;
+    }
+    
+    if (USERNAME_MAX_LEN < username_len || PASSWORD_MAX_LEN < password_len) 
+    {
+        syslog_write(log_file, ERROR, "Username or password over the expected length");
+        return false;
+    }
+    
+    return true;
+
+}
+
+static validate_reservation_command_fields(data, length)
+{
+
+}
+static validate_bookings_fields(data, length)
+{
+
+}
+static validate_list_fields(data, length)
+{
+
+}
+static validate_menu_fields(data, length)
+{
+
+}
 
 
 
