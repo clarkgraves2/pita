@@ -222,7 +222,58 @@ int main(int argc, char *argv[])
             active_fds++;
         }
         
-     
+        for (int idx = 1; idx < active_fds; idx++)
+        {
+            if (poll_fds_array[idx].revents & POLLIN)
+            {
+                int bytes_received = recv(poll_fds_array[idx].fd, incoming_data_buffer, BUFFER_SIZE - 1, 0);
+
+                if ( 0 >= bytes_received)
+                {
+                    if (0 == bytes_received)
+                    {
+                        syslog_write(log_file, CONN, "Client disconnected");
+                    }
+                    else
+                    {
+                        syslog_write(log_file, ERROR, "recv() failed");
+                    }
+
+                    close(poll_fds_array[idx].fd);
+                    
+                    // Why: When we close the file descriptor in the array that creates a gap in
+                    // the file descriptor array. poll() function expects a contiguous array of 
+                    // file descriptors so instead of shifting all elements we replace the gap
+                    // with the last active element in the array. This is more efficient in O(1)
+                    // vs. O(n) time complexity.
+                    if (idx < active_fds - 1) 
+                    {
+                        poll_fds_array[idx] = poll_fds_array[active_fds - 1];
+                        idx--; 
+                    }
+
+                    active_fds--;
+                }
+                else
+                {
+                    incoming_data_buffer[bytes_received] = '\0'; // Null-terminate the received data
+    
+                    syslog_write(log_file, INFO, "Received data from client");
+                    
+                    const char *response = "Server received your message\n";
+                    ssize_t bytes_sent = send(poll_fds_array[idx].fd, response, strlen(response), 0);
+                    
+                    if (bytes_sent < 0)
+                    {
+                        syslog_write(log_file, ERROR, "Failed to send response to client");
+                    }
+                    else
+                    {
+                        syslog_write(log_file, INFO, "Response sent to client");
+                    }
+                }
+            }
+        }
 
     }
 
