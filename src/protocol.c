@@ -136,13 +136,6 @@ static bool validate_menu_fields(const header_t *header, const void *data, size_
     return true;
 }
 
-
-
-
-
-
-
-
 /**
  * Initialize the module to have the cmd_line_opts configs
  * 
@@ -171,6 +164,21 @@ bool protocol_validate_header(const void * data, size_t message_size)
 
     const header_t * header = (const header_t *)data;
 
-
+    switch (header->op_code)
+    {
+    case 0x01: 
+        return validate_user_command_fields(header, data, message_size);
+    case 0x02: 
+        return validate_reservation_command_fields(header, data, message_size);
+    case 0x03: 
+        return validate_bookings_fields(header, data, message_size);
+    case 0x04: 
+        return validate_list_fields(header, data, message_size);
+    case 0x05: 
+        return validate_menu_fields(header, data, message_size);
+    default:
+        syslog_write(log_file, ERROR, "Invalid op_code in message header");
+        return false;
+    }
 
 }
