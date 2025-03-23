@@ -13,8 +13,10 @@
 #include "syslog.h"
 
 #define USER_AND_PASS_OFFSET (4)
+#define TIME_AND_DATELEN_OFFSET (4)
 #define USERNAME_MAX_LEN (256)
 #define PASSWORD_MAX_LEN (256)
+#define UINT16_FIELD_OFFSET (2)
 
 typedef struct __attribute__((packed))
 {
@@ -47,11 +49,11 @@ static bool validate_user_command_fields(const header_t *header, const void *dat
 
     const uint8_t *user_pass_data = (const uint8_t *)data + sizeof(header_t);
     uint16_t username_len = ntohs(*(uint16_t *)(user_pass_data));
-    uint16_t password_len = ntohs(*(uint16_t *)(user_pass_data + 2));
+    uint16_t password_len = ntohs(*(uint16_t *)(user_pass_data + UINT16_FIELD_OFFSET));
     
     if (sizeof(header_t) + USER_AND_PASS_OFFSET + username_len + password_len > length) 
     {
-        syslog_write(log_file, ERROR, "Message recieved size not complete for message length needed");
+        syslog_write(log_file, ERROR, "Message recieved size not complete for user_pass length expected");
         return false;
     }
     
@@ -62,13 +64,34 @@ static bool validate_user_command_fields(const header_t *header, const void *dat
     }
     
     return true;
-
 }
 
-static validate_reservation_command_fields(data, length)
+static validate_reservation_command_fields(const header_t *header, const void *data, size_t length)
 {
+    if (0x01 < header->flag)
+    {
+        syslog_write(log_file, ERROR, "Invalid flag for reservation command message");
+        return false;
+    }
 
+    if((sizeof(header_t) + TIME_AND_DATELEN_OFFSET) > length)
+    {
+        syslog_write(log_file, ERROR, "Only header sent, no time or date_string_len sent");
+        return false;
+    }
+
+    const uint8_t *time_date_data = (const uint8_t *)data + sizeof(header_t);
+    uint16_t date_string_len = ntohs(*(uint16_t *)(time_date_data + UINT16_FIELD_OFFSET));
+
+    if(sizeof(header_t) + TIME_AND_DATELEN_OFFSET + date_string_len > length)
+    {
+        syslog_write(log_file, ERROR, "Message recieved size not complete for time_date length expected");
+        return false;
+    }
+
+    return true;
 }
+
 static validate_bookings_fields(data, length)
 {
 
