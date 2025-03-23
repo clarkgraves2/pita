@@ -125,10 +125,15 @@ static bool validate_list_fields(const header_t *header, const void *data, size_
     return true;
 }
 
-
 static bool validate_menu_fields(const header_t *header, const void *data, size_t length)
 {
-    
+    if (sizeof(header_t) > length)
+    {
+        syslog_write(log_file, ERROR, "Message too short - incomplete header for menu");
+        return false;
+    }
+
+    return true;
 }
 
 
