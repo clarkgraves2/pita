@@ -256,7 +256,7 @@ int main(int argc, char *argv[])
                 }
                 else
                 {
-                    incoming_data_buffer[bytes_received] = '\0'; // Null-terminate the received data
+                    incoming_data_buffer[bytes_received] = '\0'; 
     
                     syslog_write(log_file, INFO, "Received data from client");
                     
