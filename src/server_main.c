@@ -1,16 +1,17 @@
 #define _POSIX_C_SOURCE 200112L
 #define _GNU_SOURCE
 
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "cmd_line_opts.h"
 #include "syslog.h"
@@ -21,6 +22,8 @@
 #define BIND_ERR (-1)
 #define LISTEN_ERR (-1)
 #define SIGACTION_ERR (-1)
+#define WAIT_INDEF (-1)
+#define NUM_OF_POLL_FDS (257)
 #define BUFFER_SIZE (1024)
 
 static volatile sig_atomic_t serv_running = 1;
@@ -141,11 +144,31 @@ int main(int argc, char *argv[])
         goto cleanup;
     }
 
-    
+    struct pollfd * poll_fds_array = calloc(NUM_OF_POLL_FDS, sizeof(struct pollfd));
+    if (NULL == poll_fds_array)
+    {
+        syslog_write(log_file,ERROR, "Poll file descriptors failed to allocate");
+        goto cleanup;
+    }
+
+    int active_fds = 0;
+    poll_fds_array[0].fd = server_socket_fd;
+    poll_fds_array[0].events = POLL_IN;
+    active_fds = 1;
+
+    while(serv_running)
+    {
+        int poll_count = poll(poll_fds_array, active_fds, WAIT_INDEF);
+        
+
+    }
 
     syslog_write(log_file, INFO, "Server shutting down gracefully");
-    freeaddrinfo(getaddr_res);
+    free(poll_fds_array);
+    poll_fds_array = NULL;
     close(server_socket_fd);
+    freeaddrinfo(getaddr_res);
+    getaddr_res = NULL;
     cleanup_options(options);
     free(options);
     options = NULL;
@@ -157,28 +180,34 @@ int main(int argc, char *argv[])
     return EXIT_SUCCESS;
 
 cleanup:
-    if (hints != NULL) 
+    if (NULL != poll_fds_array)
+    {
+    free(poll_fds_array);
+    poll_fds_array = NULL;
+    }
+
+    if (NULL != hints) 
     {
         free(hints);
         hints = NULL;
     }
-    if (get_addr_port_str != NULL) 
+    if (NULL != get_addr_port_str) 
     {
         free(get_addr_port_str);
         get_addr_port_str = NULL;
     }
-    if (options != NULL) 
+    if (NULL != options) 
     {
         cleanup_options(options);
         free(options);
         options = NULL;
     }
-    if (getaddr_res != NULL) 
+    if (NULL != getaddr_res) 
     {
         freeaddrinfo(getaddr_res);
         getaddr_res = NULL;
     }
-    if (server_socket_fd >= 0) 
+    if (0 <= server_socket_fd) 
     {
         close(server_socket_fd);
     }
