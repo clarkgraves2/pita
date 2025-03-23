@@ -25,6 +25,18 @@ typedef struct __attribute__((packed))
 } header_t;
 
 static cmd_line_options_t *protocol_configs = NULL;
+static FILE * log_file = NULL;
+
+static validate_user_command_header_fields()
+
+
+
+
+
+
+
+
+
 
 /**
  * Initialize the module to have the cmd_line_opts configs
@@ -40,10 +52,20 @@ bool protocol_init(cmd_line_options_t *options)
     }
     
     protocol_configs = options;
+    log_file = protocol_configs->log_file;
     return true;
 }
 
 bool protocol_validate_header(const void * data, size_t message_size)
 {
-    
+    if (sizeof(header_t) > message_size)
+    {
+        syslog(log_file, ERROR, "Message does not have a complete header.");
+        return false;
+    }
+
+    const header_t * header = (const header_t *)data;
+
+
+
 }
