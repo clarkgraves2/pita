@@ -226,7 +226,7 @@ int main(int argc, char *argv[])
         {
             if (poll_fds_array[idx].revents & POLLIN)
             {
-                int bytes_received = recv(poll_fds_array[idx].fd, incoming_data_buffer, BUFFER_SIZE - 1, 0);
+                int bytes_received = recv(poll_fds_array[idx].fd, incoming_data_buffer, BUFFER_SIZE, 0);
 
                 if ( 0 >= bytes_received)
                 {
@@ -256,21 +256,11 @@ int main(int argc, char *argv[])
                 }
                 else
                 {
-                    incoming_data_buffer[bytes_received] = '\0'; 
-    
-                    syslog_write(log_file, INFO, "Received data from client");
-                    
-                    const char *response = "Server received your message\n";
-                    ssize_t bytes_sent = send(poll_fds_array[idx].fd, response, strlen(response), 0);
-                    
-                    if (bytes_sent < 0)
-                    {
-                        syslog_write(log_file, ERROR, "Failed to send response to client");
-                    }
-                    else
-                    {
-                        syslog_write(log_file, INFO, "Response sent to client");
-                    }
+                  
+                  // Implement partial read functionality
+                  // Check for complete message and if
+                  // error or not complete message 
+                  // close connection and remove from array.
                 }
             }
         }
