@@ -21,6 +21,7 @@ typedef struct
     bool is_admin;
     uint32_t session_id;  
     time_t session_creation_time; 
+    time_t last_activity_time;
 } user_t;
 
 typedef struct
@@ -360,6 +361,8 @@ bool user_db_logout(user_db_t *user_database, uint32_t session_id)
     return true;
 }
 
+
+
 bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs)
 {
     if (NULL == user_database || NULL == userdb_configs)
@@ -403,5 +406,32 @@ bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs
         return false;
     }
 
+    return true;
+}
+
+bool user_db_cleanup(user_db_t *user_database)
+{
+    if (NULL == user_database)
+    {
+        syslog_write(log_file, ERROR, "User database cleanup parameter invalid");
+        return false;
+    }
+
+    if (NULL != user_database->users)
+    {
+        free(user_database->users);
+        user_database->users = NULL;
+    }
+
+    int result = pthread_mutex_destroy(&user_database->db_lock);
+    if (0 != result)
+    {
+        syslog_write(log_file, ERROR, "User database mutex destroy failed");
+        return false;
+    }
+
+    user_database->user_count = 0;
+    
+    syslog_write(log_file, INFO, "User database cleaned up successfully");
     return true;
 }
