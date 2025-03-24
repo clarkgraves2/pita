@@ -309,7 +309,7 @@ bool user_db_login(user_db_t * user_database, const char *username, const char* 
     return true;
 
 cleanup:
-    if (0 != pthread_mutex_lock(&user_database->db_lock))
+    if (0 != pthread_mutex_unlock(&user_database->db_lock))
     {
         syslog_write(log_file, ERROR, "user_db_login mutex failed to lock");
         return false;
@@ -361,7 +361,46 @@ bool user_db_logout(user_db_t *user_database, uint32_t session_id)
     return true;
 }
 
+bool user_db_is_logged_in(user_db_t *user_database, uint32_t session_id)
+{
+    if (NULL == user_database || 0 == session_id)
+    {
+        syslog_write(log_file, ERROR, "Session validation parameters invalid");
+        return false;
+    }
 
+    if (0 != pthread_mutex_lock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "Session validation mutex failed to lock");
+        return false;
+    }
+    
+    for (size_t idx = 0; idx < user_database->user_count; idx++)
+    {
+        if (user_database->users[idx].session_id == session_id)
+        {
+           break;
+        }
+        else
+        {
+            if (0 != pthread_mutex_unlock(&user_database->db_lock))
+            {
+                syslog_write(log_file, ERROR, "Session validation mutex failed to unlock");
+                return false;
+            }
+                  
+            return false;
+        }
+    }
+
+    if (0 != pthread_mutex_unlock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "Session validation mutex failed to unlock");
+        return false;
+    }
+
+    return true;
+}
 
 bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs)
 {
