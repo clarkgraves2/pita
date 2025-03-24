@@ -85,7 +85,7 @@ bool user_db_register(user_db_t * user_database, const char *username, const cha
         goto cleanup;
     }
 
-    for(int idx = 0; idx < user_database->user_count; idx++)
+    for(size_t idx = 0; idx < user_database->user_count; idx++)
     {
         if (STRNCOMP_MATCH == strncmp(user_database->users[idx].username, username, USERNAME_MAX_LEN))
         {
@@ -317,6 +317,48 @@ cleanup:
     return false;
 }
 
+bool user_db_logout(user_db_t *user_database, uint32_t session_id)
+{
+    if (NULL == user_database || 0 == session_id)
+    {
+        syslog_write(log_file, ERROR, "Logout parameters invalid");
+        return false;
+    }
+
+    if (0 != pthread_mutex_lock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "Logout mutex failed to lock");
+        return false;
+    }
+
+    bool session_id_found = false;
+    
+    for (size_t idx = 0; idx < user_database->user_count; idx++)
+    {
+        if (user_database->users[idx].session_id == session_id)
+        {
+            user_database->users[idx].session_id = 0;
+            user_database->users[idx].session_creation_time = 0;
+            session_id_found = true;
+            
+            syslog_write(log_file, LOGIN, "User logged out successfully");
+            break;
+        }
+    }
+
+    if (!session_id_found)
+    {
+        syslog_write(log_file, ERROR, "Logout failed: session not found");
+    }
+
+    if (0 != pthread_mutex_unlock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "Logout mutex failed to unlock");
+        return false;
+    }
+
+    return true;
+}
 
 bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs)
 {

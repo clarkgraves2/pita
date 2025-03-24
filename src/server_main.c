@@ -222,7 +222,7 @@ int main(int argc, char *argv[])
             active_fds++;
         }
         
-        for (int idx = 1; idx < active_fds; idx++)
+        for (size_t idx = 1; idx < active_fds; idx++)
         {
             if (poll_fds_array[idx].revents & POLLIN)
             {
