@@ -32,6 +32,39 @@ typedef struct
 
 static FILE * log_file = NULL;
 
+static uint32_t generate_new_session_id(user_db_t *user_database)
+{
+    uint32_t new_session_id = (uint32_t)time(NULL);
+    
+    // Why: To have the best chance of uniqueness we take the current
+    // time and XOR it with a random number. This exponientially decreases
+    // the chances of duplicate session id's, as well as squashes predictability
+    // is someone was trying to hijack our session id.
+    new_session_id ^= (uint32_t)rand();
+    
+    while (new_session_id == 0)
+    {
+        new_session_id = (uint32_t)time(NULL) ^ (uint32_t)rand();
+    }
+    
+    bool unique = false;
+    while (!unique)
+    {
+        unique = true;
+        for (size_t idx = 0; idx < user_database->user_count; idx++)
+        {
+            if (user_database->users[idx].session_id == new_session_id)
+            {
+                unique = false;
+                new_session_id = (uint32_t)time(NULL) ^ (uint32_t)rand();
+                break;
+            }
+        }
+    }
+    
+    return new_session_id;
+}
+
 bool user_db_register(user_db_t * user_database, const char *username, const char* password, bool is_admin)
 {
     if (NULL == user_database || NULL == username || NULL == password)
@@ -221,7 +254,7 @@ cleanup:
     return false;
 }
 
-bool user_db_login(user_db_t * user_database, const char *username, const char* password)
+bool user_db_login(user_db_t * user_database, const char *username, const char* password, uint32_t *session_id_out)
 {
     if (NULL == user_database || NULL == username || NULL == password)
     {
@@ -235,7 +268,6 @@ bool user_db_login(user_db_t * user_database, const char *username, const char* 
         return false;
     }
     
-    // Find the user
     int user_idx = -1;
     for (size_t idx = 0; idx < user_database->user_count; idx++)
     {
@@ -258,12 +290,31 @@ bool user_db_login(user_db_t * user_database, const char *username, const char* 
         goto cleanup;
     }
 
+    uint32_t new_session_id = generate_new_session_id(user_database);
+
+    user_database->users[user_idx].session_id = new_session_id;
+    user_database->users[user_idx].session_creation_time = time(NULL);
+
+    *session_id_out = new_session_id;
+    
+    syslog_write(log_file, LOGIN, "User login successful");
+    
+    if (0 != pthread_mutex_unlock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "user_db_login mutex failed to unlock");
+        return false;
+    }
+    
+    return true;
+
 cleanup:
     if (0 != pthread_mutex_lock(&user_database->db_lock))
     {
         syslog_write(log_file, ERROR, "user_db_login mutex failed to lock");
         return false;
     }
+
+    return false;
 }
 
 
