@@ -120,6 +120,152 @@ cleanup:
     return false;
 }
 
+bool user_db_delete_user(user_db_t *user_database, const char *username, uint32_t admin_session_id)
+{
+    if (NULL == user_database || NULL == username)
+    {
+        syslog_write(log_file, ERROR, "user_db_delete_user parameters invalid");
+        return false;
+    }
+
+    if (0 != pthread_mutex_lock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "User_db_delete_user mutex failed to lock");
+        return false;
+    }
+
+    bool is_admin = false;
+    int admin_idx = -1;
+    for (size_t idx = 0; idx < user_database->user_count; idx++)
+    {
+        if (user_database->users[idx].session_id == admin_session_id)
+        {
+            is_admin = user_database->users[idx].is_admin;
+            admin_idx = (int)idx;
+            break;
+        }
+    }
+
+    if (!is_admin || 0 > admin_idx)
+    {
+        syslog_write(log_file, ERROR, "Delete user request not from admin or invalid session");
+        goto cleanup;
+    }
+
+    int user_idx = -1;
+    for (size_t jdx = 0; jdx < user_database->user_count; jdx++)
+    {
+        if (STRNCOMP_MATCH == strncmp(user_database->users[jdx].username, username, USERNAME_MAX_LEN))
+        {
+            user_idx = (int)jdx;
+            break;
+        }
+    }
+
+    if (0 > user_idx)
+    {
+        syslog_write(log_file, ERROR, "User to delete not found");
+        goto cleanup;
+    }
+
+    if (user_idx == admin_idx)
+    {
+        syslog_write(log_file, ERROR, "Admin cannot delete their own account");
+        goto cleanup;
+    }
+    
+    // Why: We first check to see if the user we're deleting is the last
+    // in the array, if so just zero the user out, and decrement the user count.
+    // If it isn't the last one we just replace the user to delete with the last
+    // user in array and then zero out the space of the moved user, and decrement
+    // the count.
+    if (user_idx == (int)(user_database->user_count - 1)) 
+    {
+        user_t *user_to_delete = &user_database->users[user_idx];
+        user_to_delete->username[0] = '\0';
+        user_to_delete->password[0] = '\0';
+        user_to_delete->is_admin = false;
+        user_to_delete->session_id = 0;
+        user_to_delete->session_creation_time = 0;
+    } 
+    else 
+    {
+        user_database->users[user_idx] = user_database->users[user_database->user_count - 1];
+        
+        user_t *last_user = &user_database->users[user_database->user_count - 1];
+        last_user->username[0] = '\0';
+        last_user->password[0] = '\0';
+        last_user->is_admin = false;
+        last_user->session_id = 0;
+        last_user->session_creation_time = 0;
+    }
+
+    user_database->user_count--;
+
+    syslog_write(log_file, USER, "User deleted and last user in array moved");
+
+    if (0 != pthread_mutex_unlock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "User_db_delete_user mutex failed to unlock");
+        return false;
+    }
+
+    return true;
+
+cleanup:
+    if (0 != pthread_mutex_unlock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "User_db_delete_user mutex failed to unlock");
+        return false;
+    }
+    return false;
+}
+
+bool user_db_login(user_db_t * user_database, const char *username, const char* password)
+{
+    if (NULL == user_database || NULL == username || NULL == password)
+    {
+        syslog_write(log_file, ERROR, "Login parameters invalid");
+        return false;
+    }
+
+    if (0 != pthread_mutex_lock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "user_db_login mutex failed to lock");
+        return false;
+    }
+    
+    // Find the user
+    int user_idx = -1;
+    for (size_t idx = 0; idx < user_database->user_count; idx++)
+    {
+        if (STRNCOMP_MATCH == strncmp(user_database->users[idx].username, username, USERNAME_MAX_LEN))
+        {
+            user_idx = (int)idx;
+            break;
+        }
+    }
+    
+    if (0 > user_idx)
+    {
+        syslog_write(log_file, ERROR, "Login failed: user not found");
+        goto cleanup;
+    }
+
+    if (STRNCOMP_MATCH != strncmp(user_database->users[user_idx].password, password, PASSWORD_MAX_LEN))
+    {
+        syslog_write(log_file, ERROR, "Login failed: incorrect password");
+        goto cleanup;
+    }
+
+cleanup:
+    if (0 != pthread_mutex_lock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "user_db_login mutex failed to lock");
+        return false;
+    }
+}
+
 
 bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs)
 {
