@@ -3,14 +3,15 @@
  * @brief Implementation of Pita-bytes protocol handlers
  */
 
+#include <arpa/inet.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdbool.h>
 #include <stdint.h>
 
 #include "cmd_line_opts.h"
 #include "protocol.h"
 #include "syslog.h"
+
 
 #define USER_AND_PASS_OFFSET (4)
 #define TIME_AND_DATELEN_OFFSET (4)
@@ -158,7 +159,7 @@ bool protocol_validate_header(const void * data, size_t message_size)
 {
     if (sizeof(header_t) > message_size)
     {
-        syslog(log_file, ERROR, "Message does not have a complete header.");
+        syslog_write(log_file, ERROR, "Message does not have a complete header.");
         return false;
     }
 
