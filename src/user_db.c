@@ -12,7 +12,9 @@
 #define USERNAME_MAX_LEN (64)
 #define PASSWORD_MAX_LEN (128)
 #define MAX_USERS (256)
-#define STRNCOMP_MATCH (0)
+#define STRNCMP_MATCH (0)
+#define SESSION_CHECK_SEC_INTERVAL (60)
+#define SESSION_TIMEOUT (300)
 
 typedef struct 
 {
@@ -88,7 +90,7 @@ bool user_db_register(user_db_t * user_database, const char *username, const cha
 
     for(size_t idx = 0; idx < user_database->user_count; idx++)
     {
-        if (STRNCOMP_MATCH == strncmp(user_database->users[idx].username, username, USERNAME_MAX_LEN))
+        if (STRNCMP_MATCH == strncmp(user_database->users[idx].username, username, USERNAME_MAX_LEN))
         {
             syslog_write(log_file, ERROR, "Username already exists");
             goto cleanup;
@@ -189,7 +191,7 @@ bool user_db_delete_user(user_db_t *user_database, const char *username, uint32_
     int user_idx = -1;
     for (size_t jdx = 0; jdx < user_database->user_count; jdx++)
     {
-        if (STRNCOMP_MATCH == strncmp(user_database->users[jdx].username, username, USERNAME_MAX_LEN))
+        if (STRNCMP_MATCH == strncmp(user_database->users[jdx].username, username, USERNAME_MAX_LEN))
         {
             user_idx = (int)jdx;
             break;
@@ -272,7 +274,7 @@ bool user_db_login(user_db_t * user_database, const char *username, const char* 
     int user_idx = -1;
     for (size_t idx = 0; idx < user_database->user_count; idx++)
     {
-        if (STRNCOMP_MATCH == strncmp(user_database->users[idx].username, username, USERNAME_MAX_LEN))
+        if (STRNCMP_MATCH == strncmp(user_database->users[idx].username, username, USERNAME_MAX_LEN))
         {
             user_idx = (int)idx;
             break;
@@ -285,7 +287,7 @@ bool user_db_login(user_db_t * user_database, const char *username, const char* 
         goto cleanup;
     }
 
-    if (STRNCOMP_MATCH != strncmp(user_database->users[user_idx].password, password, PASSWORD_MAX_LEN))
+    if (STRNCMP_MATCH != strncmp(user_database->users[user_idx].password, password, PASSWORD_MAX_LEN))
     {
         syslog_write(log_file, ERROR, "Login failed: incorrect password");
         goto cleanup;
@@ -388,7 +390,7 @@ bool user_db_is_logged_in(user_db_t *user_database, uint32_t session_id)
                 syslog_write(log_file, ERROR, "Session validation mutex failed to unlock");
                 return false;
             }
-                  
+
             return false;
         }
     }
@@ -400,6 +402,49 @@ bool user_db_is_logged_in(user_db_t *user_database, uint32_t session_id)
     }
 
     return true;
+}
+
+void *user_db_session_monitor(void *arg)
+{
+    user_db_t *user_database = (user_db_t *)arg;
+    if (NULL == user_database)
+    {
+        syslog_write(log_file, ERROR, "Session monitor invalid db pointer");
+        return NULL;
+    }
+    
+    for(;;)
+    {
+
+        sleep(SESSION_CHECK_SEC_INTERVAL);
+        
+        if (0 != pthread_mutex_lock(&user_database->db_lock))
+        {
+            syslog_write(log_file, ERROR, "Session monitor mutex failed to lock");
+            continue;
+        }
+        
+        time_t current_time = time(NULL);
+        
+        for (size_t idx = 0; idx < user_database->user_count; idx++)
+        {
+            if (0 != user_database->users[idx].session_id)
+            {
+                if (SESSION_TIMEOUT < (current_time - user_database->users[idx].last_activity_time))
+                {
+                    syslog_write(log_file, INFO, "User timeout reached");
+                    user_database->users[idx].session_id = 0;
+                }
+            }
+        }
+        
+        if (0 != pthread_mutex_unlock(&user_database->db_lock))
+        {
+            syslog_write(log_file, ERROR, "Session monitor mutex failed to unlock");
+        }
+    }
+
+    return NULL;
 }
 
 bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs)
@@ -470,7 +515,8 @@ bool user_db_cleanup(user_db_t *user_database)
     }
 
     user_database->user_count = 0;
-    
     syslog_write(log_file, INFO, "User database cleaned up successfully");
+    
     return true;
 }
+
