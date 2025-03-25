@@ -28,7 +28,7 @@ typedef struct
     time_t last_activity_time;
 } user_t;
 
-typedef struct
+typedef struct user_db
 {
     user_t * users;
     size_t user_count;
