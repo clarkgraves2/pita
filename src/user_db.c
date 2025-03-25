@@ -1,4 +1,5 @@
 #include <pthread.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -32,6 +33,7 @@ typedef struct
     user_t * users;
     size_t user_count;
     pthread_mutex_t db_lock;
+    volatile sig_atomic_t *server_running; 
 }user_db_t;
 
 static FILE * log_file = NULL;
@@ -398,6 +400,57 @@ bool user_db_is_logged_in(user_db_t *user_database, uint32_t session_id)
     return is_logged_in;
 }
 
+bool user_db_get_username(user_db_t *user_database, uint32_t session_id, 
+                          char *username_out, size_t username_max)
+{
+    if (NULL == user_database || 0 == session_id || 
+        NULL == username_out || 0 == username_max)
+    {
+        syslog_write(log_file, ERROR, "Get username parameters invalid");
+        return false;
+    }
+
+    if (0 != pthread_mutex_lock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "Get username mutex failed to lock");
+        return false;
+    }
+    
+    bool found = false;
+    
+    for (size_t idx = 0; idx < user_database->user_count; idx++)
+    {
+        if (user_database->users[idx].session_id == session_id)
+        {
+            size_t copy_len;
+            if (username_max - 1 < USERNAME_MAX_LEN)
+            {
+                copy_len = username_max - 1;
+            }
+            else
+            {
+                copy_len = USERNAME_MAX_LEN;
+            }
+            
+            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+            strncpy(username_out, user_database->users[idx].username, copy_len);
+            
+            username_out[copy_len] = '\0';
+            
+            found = true;
+            break;
+        }
+    }
+
+    if (0 != pthread_mutex_unlock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "Get username mutex failed to unlock");
+        return false;
+    }
+
+    return found;
+}
+
 void *user_db_session_monitor(void *arg)
 {
     user_db_t *user_database = (user_db_t *)arg;
@@ -407,7 +460,7 @@ void *user_db_session_monitor(void *arg)
         return NULL;
     }
     
-    for(;;)
+    while (*(user_database->server_running))
     {
 
         sleep(SESSION_CHECK_SEC_INTERVAL);
@@ -512,7 +565,8 @@ bool user_db_is_admin(user_db_t *user_database, uint32_t session_id)
     return is_admin;
 }
 
-bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs)
+bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs,
+                  volatile sig_atomic_t *serv_running)
 {
     if (NULL == user_database || NULL == userdb_configs)
     {
@@ -520,7 +574,7 @@ bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs
     }
 
     log_file = userdb_configs->log_file;
-
+    user_database->server_running = serv_running;
     user_database->user_count = 0;
     user_database->users = calloc(MAX_USERS, sizeof(user_t));
     if (NULL == user_database->users)
@@ -585,3 +639,4 @@ bool user_db_cleanup(user_db_t *user_database)
     return true;
 }
 
+/*** end of file ***/
