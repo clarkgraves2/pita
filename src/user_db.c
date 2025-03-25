@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "cmd_line_opts.h"
 #include "user_db.h"
@@ -445,6 +446,44 @@ void *user_db_session_monitor(void *arg)
     }
 
     return NULL;
+}
+
+bool user_db_update_activity(user_db_t *user_database, uint32_t session_id)
+{
+    if (NULL == user_database || 0 == session_id)
+    {
+        syslog_write(log_file, ERROR, "Update activity parameters invalid");
+        return false;
+    }
+
+    if (0 != pthread_mutex_lock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "Update activity mutex failed to lock");
+        return false;
+    }
+    
+    for (size_t idx = 0; idx < user_database->user_count; idx++)
+    {
+        if (user_database->users[idx].session_id == session_id)
+        {
+            user_database->users[idx].last_activity_time = time(NULL);
+            if (0 != pthread_mutex_unlock(&user_database->db_lock))
+            {
+                syslog_write(log_file, ERROR, "Update activity mutex failed to unlock");
+                return false;
+            }
+
+            return true;
+        }
+    }
+
+    if (0 != pthread_mutex_unlock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "Update activity mutex failed to unlock");
+        return false;
+    }
+
+    return false;
 }
 
 bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs)
