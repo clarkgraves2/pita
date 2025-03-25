@@ -314,7 +314,7 @@ bool user_db_login(user_db_t * user_database, const char *username, const char* 
 cleanup:
     if (0 != pthread_mutex_unlock(&user_database->db_lock))
     {
-        syslog_write(log_file, ERROR, "user_db_login mutex failed to lock");
+        syslog_write(log_file, ERROR, "user_db_login mutex failed to unlock");
         return false;
     }
 
@@ -378,21 +378,14 @@ bool user_db_is_logged_in(user_db_t *user_database, uint32_t session_id)
         return false;
     }
     
+    
+    bool is_logged_in = false;
     for (size_t idx = 0; idx < user_database->user_count; idx++)
     {
         if (user_database->users[idx].session_id == session_id)
         {
-           break;
-        }
-        else
-        {
-            if (0 != pthread_mutex_unlock(&user_database->db_lock))
-            {
-                syslog_write(log_file, ERROR, "Session validation mutex failed to unlock");
-                return false;
-            }
-
-            return false;
+            is_logged_in = true;
+            break; 
         }
     }
 
@@ -402,7 +395,7 @@ bool user_db_is_logged_in(user_db_t *user_database, uint32_t session_id)
         return false;
     }
 
-    return true;
+    return is_logged_in;
 }
 
 void *user_db_session_monitor(void *arg)
@@ -484,6 +477,39 @@ bool user_db_update_activity(user_db_t *user_database, uint32_t session_id)
     }
 
     return false;
+}
+
+bool user_db_is_admin(user_db_t *user_database, uint32_t session_id)
+{
+    if (NULL == user_database || 0 == session_id)
+    {
+        syslog_write(log_file, ERROR, "Is admin parameters invalid");
+        return false;
+    }
+
+    if (0 != pthread_mutex_lock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "Is admin mutex failed to lock");
+        return false;
+    }
+    
+    bool is_admin = false;
+    for (size_t idx = 0; idx < user_database->user_count; idx++)
+    {
+        if (user_database->users[idx].session_id == session_id)
+        {
+            is_admin = user_database->users[idx].is_admin;
+            break;
+        }
+    }
+
+    if (0 != pthread_mutex_unlock(&user_database->db_lock))
+    {
+        syslog_write(log_file, ERROR, "Is admin mutex failed to unlock");
+        return false;
+    }
+
+    return is_admin;
 }
 
 bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs)
