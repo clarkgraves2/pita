@@ -115,10 +115,7 @@ bool user_db_register(user_db_t * user_database, const char *username, const cha
     }
 
     user_t * new_user = &user_database->users[user_database->user_count];
-    
-    // Justification for suppression: using a constant USERNAME_MAX_LEN that I checkagainst
-    // and make sure it doesn't fail. Same reason for next clang-tidy supression below.
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+   
     if(NULL == strncpy(new_user->username, username, USERNAME_MAX_LEN - 1))
     {
         syslog_write(log_file, ERROR, "Storing username strncopy failed");
@@ -127,7 +124,6 @@ bool user_db_register(user_db_t * user_database, const char *username, const cha
 
     new_user->username[USERNAME_MAX_LEN - 1] = '\0'; 
     
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     if(NULL == strncpy(new_user->password, password, PASSWORD_MAX_LEN - 1))
     {
         syslog_write(log_file, ERROR, "Storing password strncopy failed");
@@ -432,7 +428,6 @@ bool user_db_get_username(user_db_t *user_database, uint32_t session_id,
                 copy_len = USERNAME_MAX_LEN;
             }
             
-            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
             strncpy(username_out, user_database->users[idx].username, copy_len);
             
             username_out[copy_len] = '\0';

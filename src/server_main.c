@@ -1,5 +1,5 @@
-#define _POSIX_C_SOURCE 200112L
-#define _GNU_SOURCE
+#define POSIX_C_SOURCE 200112L
+#define GNU_SOURCE
 
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -96,10 +96,8 @@ int main(int argc, char *argv[])
     hints->ai_socktype = SOCK_STREAM; 
     hints->ai_flags = AI_PASSIVE; 
 
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
-    int written = snprintf(get_addr_port_str, PORT_STR_BUFFER, "%d", options->port);
-
-    if (0 > written) 
+   
+    if(0 > snprintf(get_addr_port_str, PORT_STR_BUFFER, "%d", options->port))
     {
         syslog_write(log_file, ERROR, "int to str conversion failed\n");
         goto cleanup;
@@ -212,7 +210,7 @@ int main(int argc, char *argv[])
             }
 
             char log_msg[100];
-            // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
+      
             snprintf(log_msg, sizeof(log_msg), "New connection from %s:%d", 
                      inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
             syslog_write(log_file, CONN, log_msg);
