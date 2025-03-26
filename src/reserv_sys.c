@@ -12,7 +12,9 @@
 
 #define USERNAME_MAX_LEN (64)
 #define DAYS_IN_YEAR (365)
+#define SECONDS_PER_DAY (86400)
 #define HOUR_DIV (100)
+#define MIDNIGHT (2400)
 
 typedef struct 
 {
@@ -54,10 +56,121 @@ static int calculate_num_time_slots(int opening_hour, int closing_hour)
 {
     if (closing_hour == 0)
     {
-        closing_hour = 2400;
+        closing_hour = MIDNIGHT;
     }
     
     return (closing_hour - opening_hour) / HOUR_DIV;
+}
+
+static int get_date_in_yyyymmdd_format(int day_index)
+{
+    if (0 > day_index || DAYS_IN_YEAR <= day_index)
+    {
+        syslog_write(log_file, ERROR, "Invalid day index for date conversion");
+        return 0;
+    }
+
+    time_t current_time = time(NULL);
+    if ((time_t)-1 == current_time)
+    {
+        syslog_write(log_file, ERROR, "Failed to get current time");
+        return 0;
+    }
+
+    time_t future_time = current_time + (day_index * SECONDS_PER_DAY);
+    
+    struct tm *time_info = localtime(&future_time);
+    if (NULL == time_info)
+    {
+        syslog_write(log_file, ERROR, "Failed to convert time to local time");
+        return 0;
+    }
+
+    int date = (time_info->tm_year + 1900) * 10000 + 
+               (time_info->tm_mon + 1) * 100 + 
+               time_info->tm_mday;
+    
+    return date;
+}
+
+static int find_date_index(int date)
+{
+    if (0 >= date)
+    {
+        syslog_write(log_file, ERROR, "Invalid date format for finding index");
+        return -1;
+    }
+
+    time_t current_time = time(NULL);
+    if ((time_t)-1 == current_time)
+    {
+        syslog_write(log_file, ERROR, "Failed to get current time");
+        return -1;
+    }
+
+    struct tm *current_tm = localtime(&current_time);
+    if (NULL == current_tm)
+    {
+        syslog_write(log_file, ERROR, "Failed to convert time to local time");
+        return -1;
+    }
+
+    int current_date = (current_tm->tm_year + 1900) * 10000 + 
+                       (current_tm->tm_mon + 1) * 100 + 
+                       current_tm->tm_mday;
+
+    if (date < current_date)
+    {
+        syslog_write(log_file, ERROR, "Date is in the past");
+        return -1;
+    }
+
+    int year = date / 10000;
+    int month = (date / 100) % 100;
+    int day = date % 100;
+
+    struct tm target_tm = {0};
+    target_tm.tm_year = year - 1900;
+    target_tm.tm_mon = month - 1;
+    target_tm.tm_mday = day;
+    target_tm.tm_hour = 12; 
+    
+
+    time_t target_time = mktime(&target_tm);
+    if ((time_t)-1 == target_time)
+    {
+        syslog_write(log_file, ERROR, "Invalid date for conversion");
+        return -1;
+    }
+
+    int day_diff = (int)((target_time - current_time) / SECONDS_PER_DAY);
+    
+    if (0 > day_diff || DAYS_IN_YEAR <= day_diff)
+    {
+        syslog_write(log_file, ERROR, "Date out of valid range");
+        return -1;
+    }
+
+    return day_diff;
+}
+
+bool is_date_valid(int date)
+{
+    if (0 >= date)
+    {
+        return false;
+    }
+
+    int year = date / 10000;
+    int month = (date / 100) % 100;
+    int day = date % 100;
+    
+    if (2000 > year || 3000 < year || 1 > month || 12 < month || 1 > day || 31 < day)
+    {
+        return false;
+    }
+    
+    return (0 <= find_date_index(date));
 }
 
 void reserv_sys_cleanup(void) 
