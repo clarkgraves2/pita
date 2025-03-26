@@ -45,7 +45,9 @@ typedef struct
     pthread_mutex_t reserve_lock;
 }reservation_system_t;
 
-FILE * log_file = NULL;
+static FILE* log_file = NULL;
+static reservation_system_t* g_reservation_system = NULL;
+static user_db_t* g_user_database = NULL;
 
 bool reserv_sys_init(user_db_t * user_database, cmd_line_options_t * userdb_configs,
     volatile sig_atomic_t *serv_running)
@@ -56,6 +58,7 @@ bool reserv_sys_init(user_db_t * user_database, cmd_line_options_t * userdb_conf
     }
 
     log_file = userdb_configs->log_file;
+    g_user_database = user_database;
 
     reservation_system_t * reservation_system = calloc(1, sizeof(reservation_system_t));
     if (NULL == reservation_system)

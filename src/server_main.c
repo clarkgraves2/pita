@@ -1,5 +1,7 @@
-#define POSIX_C_SOURCE 200112L
-#define GNU_SOURCE
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
+#define _POSIX_C_SOURCE 200112L
+#define _GNU_SOURCE
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp)
 
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -135,9 +137,9 @@ int main(int argc, char *argv[])
         goto cleanup;
     }
 
-    struct sigaction sa = {0};
-    sa.sa_handler = sigint_received;
-    if (SIGACTION_ERR == (sigaction(SIGINT, &sa, NULL))) 
+    struct sigaction sig_a = {0};
+    sig_a.sa_handler = sigint_received;
+    if (SIGACTION_ERR == (sigaction(SIGINT, &sig_a, NULL))) 
     {
         syslog_write(log_file, ERROR, "Failed to register SIGINT handler");
         goto cleanup;
@@ -159,7 +161,7 @@ int main(int argc, char *argv[])
 
     int active_fds = 0;
     poll_fds_array[0].fd = server_socket_fd;
-    poll_fds_array[0].events = POLL_IN;
+    poll_fds_array[0].events = POLLIN;
     active_fds = 1;
 
     while(serv_running)
@@ -209,11 +211,7 @@ int main(int argc, char *argv[])
                 continue;
             }
 
-            char log_msg[100];
-      
-            snprintf(log_msg, sizeof(log_msg), "New connection from %s:%d", 
-                     inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-            syslog_write(log_file, CONN, log_msg);
+            syslog_write(log_file, CONN, "New connection accepted");
 
             poll_fds_array[active_fds].fd = client_fd;
             poll_fds_array[active_fds].events = POLLIN;  
@@ -224,7 +222,7 @@ int main(int argc, char *argv[])
         {
             if (poll_fds_array[idx].revents & POLLIN)
             {
-                int bytes_received = recv(poll_fds_array[idx].fd, incoming_data_buffer, BUFFER_SIZE, 0);
+               ssize_t bytes_received = recv(poll_fds_array[idx].fd, incoming_data_buffer, BUFFER_SIZE, 0);
 
                 if ( 0 >= bytes_received)
                 {

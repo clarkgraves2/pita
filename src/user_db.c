@@ -2,7 +2,6 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -11,12 +10,11 @@
 #include "user_db.h"
 #include "syslog.h"
 
-#define USERNAME_MAX_LEN (64)
-#define PASSWORD_MAX_LEN (128)
 #define MAX_USERS (256)
 #define STRNCMP_MATCH (0)
 #define SESSION_CHECK_SEC_INTERVAL (60)
 #define SESSION_TIMEOUT (300)
+#define ENTROPY_MASK (0xFFFFFFFF)
 
 typedef struct 
 {
@@ -28,47 +26,59 @@ typedef struct
     time_t last_activity_time;
 } user_t;
 
-typedef struct user_db
+struct user_db
 {
     user_t * users;
     size_t user_count;
     pthread_mutex_t db_lock;
-    volatile sig_atomic_t *server_running; 
-}user_db_t;
+    volatile sig_atomic_t * server_running; 
+};
 
 static FILE * log_file = NULL;
 
-static uint32_t generate_new_session_id(user_db_t *user_database)
+static size_t 
+safe_strnlen(const char *starting_ptr, size_t str_max_len) 
 {
-    uint32_t new_session_id = (uint32_t)time(NULL);
-    
-    // Why: To have the best chance of uniqueness we take the current
-    // time and XOR it with a random number. This exponientially decreases
-    // the chances of duplicate session id's, as well as squashes predictability
-    // is someone was trying to hijack our session id.
-    new_session_id ^= (uint32_t)rand();
-    
-    while (new_session_id == 0)
+    const char *end_ptr = memchr(starting_ptr, '\0', str_max_len);
+    if (end_ptr == NULL)
     {
-        new_session_id = (uint32_t)time(NULL) ^ (uint32_t)rand();
+        return str_max_len;
     }
     
-    bool unique = false;
-    while (!unique)
+    return end_ptr - starting_ptr;
+}
+
+
+static uint32_t generate_new_session_id(user_db_t *user_database) 
+{
+    uint32_t new_id = (uint32_t)time(NULL);
+    new_id ^= (uint32_t)getpid();
+    new_id ^= (uint32_t)clock();
+    
+    new_id ^= ((uintptr_t)user_database >> 4) & ENTROPY_MASK;
+    
+    if (new_id == 0) 
     {
-        unique = true;
-        for (size_t idx = 0; idx < user_database->user_count; idx++)
+        new_id = 1;
+    }
+    
+    for (size_t idx = 0; idx < user_database->user_count; idx++) 
+    {
+        if (user_database->users[idx].session_id == new_id) 
         {
-            if (user_database->users[idx].session_id == new_session_id)
+          
+            new_id++;
+            idx = -1;  
+            
+           
+            if (new_id == 0) 
             {
-                unique = false;
-                new_session_id = (uint32_t)time(NULL) ^ (uint32_t)rand();
-                break;
+                new_id = 1;
             }
         }
     }
     
-    return new_session_id;
+    return new_id;
 }
 
 bool user_db_register(user_db_t * user_database, const char *username, const char* password, bool is_admin)
@@ -100,14 +110,14 @@ bool user_db_register(user_db_t * user_database, const char *username, const cha
         }
     }
 
-    size_t username_len = strnlen(username, USERNAME_MAX_LEN);
+    size_t username_len = safe_strnlen(username, USERNAME_MAX_LEN);
     if (username_len == 0 || username_len >= USERNAME_MAX_LEN) 
     {
         syslog_write(log_file, ERROR, "Username empty or over 64 character limit");
         goto cleanup;
     }
 
-    size_t password_len = strnlen(password, PASSWORD_MAX_LEN);
+    size_t password_len = safe_strnlen(password, PASSWORD_MAX_LEN);
     if (password_len == 0 || password_len >= PASSWORD_MAX_LEN) 
     {
         syslog_write(log_file, ERROR, "Password empty or over 64 character limit");

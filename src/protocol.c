@@ -20,6 +20,11 @@
 #define USERNAME_MAX_LEN (256)
 #define PASSWORD_MAX_LEN (256)
 #define UINT16_FIELD_OFFSET (2)
+#define USER_CMD_OP_CODE    (0x01)
+#define RESERV_CMD_OP_CODE  (0x02)
+#define BOOKINGS_OP_CODE    (0x03)
+#define LIST_OP_CODE        (0x04)
+#define MENU_OP_CODE        (0x05)
 
 typedef struct __attribute__((packed))
 {
@@ -95,7 +100,7 @@ static bool validate_reservation_command_fields(const header_t *header, const vo
     return true;
 }
 
-static bool validate_bookings_fields(const header_t *header, const void *data, size_t length)
+static bool validate_bookings_fields(size_t length)
 {
     if((sizeof(header_t) + USER_AND_PADD_OFFSET) > length)
     {
@@ -106,7 +111,7 @@ static bool validate_bookings_fields(const header_t *header, const void *data, s
     return true;
 }
 
-static bool validate_list_fields(const header_t *header, const void *data, size_t length)
+static bool validate_list_fields(const void *data, size_t length)
 {
     if (sizeof(header_t) + PADD_DATELEN_OFFSET > length)
     {
@@ -126,7 +131,7 @@ static bool validate_list_fields(const header_t *header, const void *data, size_
     return true;
 }
 
-static bool validate_menu_fields(const header_t *header, const void *data, size_t length)
+static bool validate_menu_fields(size_t length)
 {
     if (sizeof(header_t) > length)
     {
@@ -167,16 +172,16 @@ bool protocol_validate_header(const void * data, size_t message_size)
 
     switch (header->op_code)
     {
-    case 0x01: 
+    case USER_CMD_OP_CODE: 
         return validate_user_command_fields(header, data, message_size);
-    case 0x02: 
+    case RESERV_CMD_OP_CODE: 
         return validate_reservation_command_fields(header, data, message_size);
-    case 0x03: 
-        return validate_bookings_fields(header, data, message_size);
-    case 0x04: 
-        return validate_list_fields(header, data, message_size);
-    case 0x05: 
-        return validate_menu_fields(header, data, message_size);
+    case BOOKINGS_OP_CODE: 
+        return validate_bookings_fields(message_size);
+    case LIST_OP_CODE: 
+        return validate_list_fields(data, message_size);
+    case MENU_OP_CODE: 
+        return validate_menu_fields(message_size);
     default:
         syslog_write(log_file, ERROR, "Invalid op_code in message header");
         return false;

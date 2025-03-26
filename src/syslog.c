@@ -44,12 +44,15 @@ static bool assemble_log_message(log_type_t type, const char* custom_message,
         return false;
     }
 
-    struct tm time_data;
-    if (NULL == localtime_r(&utc_time_now, &time_data))
+    struct tm *time_result = localtime(&utc_time_now);
+    if (time_result == NULL)
     {
         fprintf(stderr, "Failed to convert UTC time to Local Time\n");
         return false;
     }
+
+   
+    struct tm time_data = *time_result;
 
     char timestamp[SYSLOG_TIMESTAMP_SIZE];
     if (0 == strftime(timestamp, sizeof(timestamp), SYSLOG_TIMESTAMP_FORMAT, &time_data))

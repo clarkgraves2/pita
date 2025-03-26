@@ -1,15 +1,19 @@
 #ifndef USER_DB_H
 #define USER_DB_H
 
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <signal.h> 
+
 
 #include "cmd_line_opts.h"
 #include "syslog.h"
 
 typedef struct user_db user_db_t;
 
-static uint32_t generate_new_session_id(user_db_t *user_database);
+#define USERNAME_MAX_LEN (64)
+#define PASSWORD_MAX_LEN (128)
 
 bool user_db_register(user_db_t * user_database, const char *username, const char* password, bool is_admin);
 
