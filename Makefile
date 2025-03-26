@@ -7,6 +7,12 @@ DEBUG_FLAGS = -g
 VALGRIND = valgrind
 VALGRIND_FLAGS = --leak-check=full --show-leak-kinds=all --track-origins=yes
 
+#clarn-tidy checks
+CLANG_TIDY := clang-tidy
+CLANG_TIDY_CHECKS := cert*,bugprone*,misc*,readability*,-cert-err33-c
+CLANG_TIDY_FLAGS := -checks="$(CLANG_TIDY_CHECKS)"
+CLANG_TIDY_COMPILER_FLAGS := -- -std=c99 -Iinclude
+
 # Directories
 SRC_DIR = src
 BIN_DIR = bin
@@ -14,9 +20,7 @@ TEST_DIR = tests
 TEST_RESULTS_DIR = $(TEST_DIR)/results
 
 # Source and target
-SRC = $(SRC_DIR)/server_main.c \
-      $(SRC_DIR)/cmd_line_opts.c \
-	  $(SRC_DIR)/syslog.c
+SRC_FILES := $(SRC_DIR)/*
 TARGET = $(BIN_DIR)/pita_bytes
 
 # Test file - can be overridden with make valgrind_tests TEST_FILE=your_file.txt
@@ -30,14 +34,16 @@ $(TEST_RESULTS_DIR):
 	mkdir -p $(TEST_RESULTS_DIR)
 
 # Build the server (regular build)
-$(TARGET): $(SRC) | $(BIN_DIR)
-	$(CC) $(CFLAGS) $(SRC) -o $(TARGET)
+$(TARGET): $(SRC_FILES) | $(BIN_DIR)
+	$(CC) $(CFLAGS) $(SRC_FILES) -o $(TARGET)
 
 # Build with debug symbols for Valgrind
 debug: CFLAGS += $(DEBUG_FLAGS)
 debug: $(TARGET)
 
-# Run Valgrind with default options or custom args via ARGS="your args"
+tidy:
+	$(CLANG_TIDY) $(CLANG_TIDY_FLAGS) $(SRC_FILES) $(CLANG_TIDY_COMPILER_FLAGS)
+
 valgrind: debug
 	$(VALGRIND) $(VALGRIND_FLAGS) $(TARGET) $(ARGS)
 

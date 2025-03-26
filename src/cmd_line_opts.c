@@ -29,6 +29,28 @@
 #define MIDNIGHT_HOUR (0)
 #define MIN_TABLES (1)
 #define MINS_MODULO (100)
+#define NUM_BASE_TEN (10)
+
+
+bool safe_strdup(const char *src, char **dst) 
+{
+    if (NULL == src || NULL == dst) 
+    {
+        return false;
+    }
+    
+    size_t len = strlen(src) + 1;  
+    
+    *dst = malloc(len);
+    if (NULL == *dst) 
+    {
+        return false;
+    }
+    
+    memcpy(*dst, src, len);
+    
+    return true;
+}
 
 /**
  * @param arg
@@ -69,7 +91,7 @@ static bool validate_t_opt(const char *arg, int *num_of_tables)
 
     char *strtol_endptr;
     errno            = 0;
-    long table_value = strtol(arg, &strtol_endptr, 10);
+    long table_value = strtol(arg, &strtol_endptr, NUM_BASE_TEN);
 
     if (ERANGE == errno)
     {
@@ -144,8 +166,8 @@ static bool is_valid_time_range(int opening_hour, int closing_hour)
  */
 static bool validate_o_opt(const char *arg,
                            int        *opening_hour,
-                           int        *closing_hour,
-                           int        *c_flag)
+                           const int  *closing_hour,
+                           const int  *c_flag)
 {
     if (NULL == arg)
     {
@@ -159,7 +181,7 @@ static bool validate_o_opt(const char *arg,
 
     char *strtol_endptr;
     errno              = 0;
-    long open_hr_value = strtol(arg, &strtol_endptr, 10);
+    long open_hr_value = strtol(arg, &strtol_endptr, NUM_BASE_TEN);
 
     if (ERANGE == errno)
     {
@@ -188,7 +210,7 @@ static bool validate_o_opt(const char *arg,
 
     if (FLAG_ON == *c_flag)
     {
-        if (!is_valid_time_range(open_hr_value, *closing_hour))
+        if (!is_valid_time_range((int)open_hr_value, *closing_hour))
         {
             printf("Error: Closing Time Cannot be before Opening Time\n");
             return false;
@@ -230,9 +252,9 @@ static bool validate_o_opt(const char *arg,
  * when listing and manipulating reservations we won't get unexpected behavior.
  */
 static bool validate_c_opt(const char *arg,
-                           int        *closing_hour,
-                           int        *opening_hour,
-                           int        *o_flag)
+                           int  *closing_hour,
+                           const int  *opening_hour,
+                           const int  *o_flag)
 {
     if (NULL == arg)
     {
@@ -246,7 +268,7 @@ static bool validate_c_opt(const char *arg,
 
     char *strtol_endptr;
     errno               = 0;
-    long close_hr_value = strtol(arg, &strtol_endptr, 10);
+    long close_hr_value = strtol(arg, &strtol_endptr, NUM_BASE_TEN);
 
     if (ERANGE == errno)
     {
@@ -282,7 +304,7 @@ static bool validate_c_opt(const char *arg,
 
     if (FLAG_ON == *o_flag)
     {
-        if (!is_valid_time_range(*opening_hour, close_hr_value))
+        if (!is_valid_time_range(*opening_hour, (int)close_hr_value))
         {
             printf("Error: Closing Time Cannot be before Opening Time\n");
             return false;
@@ -346,7 +368,7 @@ static bool validate_p_opt(const char *arg, int *port_input)
 
     char *strtol_endptr;
     errno               = 0;
-    long port_num_value = strtol(arg, &strtol_endptr, 10);
+    long port_num_value = strtol(arg, &strtol_endptr, NUM_BASE_TEN);
 
     if (ERANGE == errno)
     {
@@ -457,8 +479,7 @@ static bool validate_m_opt(const char *arg, char **menu_path)
         goto cleanup;
     }
 
-    *menu_path = strdup(arg);
-    if (NULL == *menu_path)
+    if (!safe_strdup(arg, menu_path)) 
     {
         printf("Error: Memory allocation failed for menu path\n");
         goto cleanup;

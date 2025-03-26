@@ -44,12 +44,15 @@ static bool assemble_log_message(log_type_t type, const char* custom_message,
         return false;
     }
 
-    struct tm time_data;
-    if (NULL == localtime_r(&utc_time_now, &time_data))
+    struct tm *time_result = localtime(&utc_time_now);
+    if (time_result == NULL)
     {
         fprintf(stderr, "Failed to convert UTC time to Local Time\n");
         return false;
     }
+
+   
+    struct tm time_data = *time_result;
 
     char timestamp[SYSLOG_TIMESTAMP_SIZE];
     if (0 == strftime(timestamp, sizeof(timestamp), SYSLOG_TIMESTAMP_FORMAT, &time_data))
@@ -58,11 +61,6 @@ static bool assemble_log_message(log_type_t type, const char* custom_message,
         return false;
     }
 
-    
-    // Justification for supression: I'm using snprint securely by passing in the buffer size
-    // that i've defined as well as checking to make sure what was written doesn't exceed
-    // the buffer size of the log message.
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     int written_to_buffer = snprintf(buffer, buffer_size, "[%s] [%s] %s\n",
                                     timestamp, LOG_TYPE_STRINGS[type], custom_message);
 
