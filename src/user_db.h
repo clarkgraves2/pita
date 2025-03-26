@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <signal.h> 
 
-
+#include "common.h"
 #include "cmd_line_opts.h"
 #include "syslog.h"
 
@@ -34,8 +34,7 @@ bool user_db_update_activity(user_db_t *user_database, uint32_t session_id);
 
 bool user_db_is_admin(user_db_t *user_database, uint32_t session_id);
 
-bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs,
-                  volatile sig_atomic_t *serv_running);
+bool user_db_init(server_state_t * server_configs);
 
 bool user_db_cleanup(user_db_t *user_database);
 

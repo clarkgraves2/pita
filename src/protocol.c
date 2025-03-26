@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include "cmd_line_opts.h"
+#include "common.h"
 #include "protocol.h"
 #include "syslog.h"
 
@@ -38,8 +38,7 @@ typedef struct __attribute__((packed))
     uint32_t session_id;
 } header_t;
 
-static cmd_line_options_t *protocol_configs = NULL;
-static FILE * log_file = NULL;
+static FILE * log_file;
 
 static bool validate_user_command_fields(const header_t *header, const void *data, size_t length)
 {
@@ -148,15 +147,13 @@ static bool validate_menu_fields(size_t length)
  * @param options Pointer to command line options structure
  * @return [true | false]
  */
-bool protocol_init(cmd_line_options_t *options)
+bool protocol_init(server_state_t * server_state)
 {
-    if (NULL == options)
+    if (NULL == server_state)
     {
         return false;
     }
-    
-    protocol_configs = options;
-    log_file = protocol_configs->log_file;
+    log_file = server_state->log_file;
     return true;
 }
 

@@ -6,8 +6,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "cmd_line_opts.h"
 #include "user_db.h"
+#include "cmd_line_opts.h"
 #include "syslog.h"
 
 #define MAX_USERS (256)
@@ -570,16 +570,15 @@ bool user_db_is_admin(user_db_t *user_database, uint32_t session_id)
     return is_admin;
 }
 
-bool user_db_init(user_db_t * user_database, cmd_line_options_t * userdb_configs,
-                  volatile sig_atomic_t *serv_running)
+bool user_db_init(server_state_t * server_configs)
 {
-    if (NULL == user_database || NULL == userdb_configs)
+    if (NULL == server_configs)
     {
         return false;
     }
 
-    log_file = userdb_configs->log_file;
-    user_database->server_running = serv_running;
+    log_file = server_configs->log_file;
+    user_db_t * user_database = server_configs->user_database;
     user_database->user_count = 0;
     user_database->users = calloc(MAX_USERS, sizeof(user_t));
     if (NULL == user_database->users)

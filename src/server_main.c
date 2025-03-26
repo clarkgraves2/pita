@@ -15,7 +15,11 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "common.h"
 #include "cmd_line_opts.h"
+#include "user_db.h"
+#include "reserv_sys.h"
+#include "protocol.h"
 #include "syslog.h"
 
 #define PORT_STR_BUFFER (6)
@@ -27,58 +31,87 @@
 #define WAIT_INDEF (-1)
 #define NUM_OF_POLL_FDS (257)
 #define BUFFER_SIZE (1024)
+#define HELP_OPTION (-2)
 
-static volatile sig_atomic_t serv_running = 1;
+volatile sig_atomic_t serv_running;
 
 static void sigint_received(int sig)
 {
-    // Standard supression of unused parameter warning from compiler
-    // because sig is required by function signatures of signal handlers in C. 
     (void)sig; 
     serv_running = 0;
 }
 
-int main(int argc, char *argv[])
+server_state_t *
+server_initialize(cmd_line_options_t * options)
 {
-    int server_socket_fd = -1;
-    int getaddrinfo_ret_val;
-    int sockopt_val = 1;
+    server_state_t *server_state = calloc(1, sizeof(server_state_t));
+    if (NULL == server_state) 
+    {
+        fprintf(stderr, "Failed to allocate server state\n");
+        return NULL;
+    }
 
+    server_state->log_file = options->log_file;
+
+
+    if(!syslog_init(server_state->log_file))
+    {
+        goto cleanup;
+    }
+
+    if (!user_db_init(server_state)) 
+    {
+        goto cleanup;
+    }
+    
+    if (!reserv_sys_init(server_state)) 
+    {
+        goto cleanup;
+    }
+
+    if (!protocol_init(server_state))
+    {
+        goto cleanup;
+    }
+
+    return server_state;
+
+cleanup:
+    if(server_state->reservation_system)
+    {
+        reserv_system_cleanup(server_state->reservation_system);
+    }  
+
+    if(server_state->user_database)
+    {
+        user_db_cleanup(server_state->user_database);
+    }  
+
+    if(server_state->log_file)
+    {
+        syslog_cleanup();
+    }    
+
+    if(options)
+    {
+        cleanup_options(options);
+        options = NULL;
+    }
+
+    return NULL;
+}   
+
+static bool 
+setup_network_state(server_state_t *server_state, cmd_line_options_t *options)
+{
+    FILE *log_file = server_state->log_file;
+    int server_socket_fd = -1;
+    int sockopt_val = 1;
+    int getaddrinfo_ret_val;
     struct addrinfo *hints = NULL;
     struct addrinfo *getaddr_res = NULL;
     char *get_addr_port_str = NULL;
-    cmd_line_options_t *options = NULL;
-    char *incoming_data_buffer = NULL;
-    struct pollfd *poll_fds_array = NULL;
-
-    options = calloc(1, sizeof(cmd_line_options_t));
-    if (NULL == options) 
-    {
-        fprintf(stderr, "cmd_line_options_t memory allocation failed\n");
-        goto cleanup;
-    }
-
-    int options_result = validate_and_set_options(argc, argv, options);
-
-    if (options_result == CMD_LINE_OPTS_HELP)
-    {
-        cleanup_options(options);
-        free(options);
-        options = NULL;
-        return EXIT_SUCCESS;
-    }
-
-    if (options_result == CMD_LINE_OPTS_FAILURE)
-    {
-       goto cleanup;
-    }
-
-    FILE * log_file = options->log_file;
-
-    if(!syslog_init(log_file))
-    {
-        goto cleanup;
-    }
+    bool result = false;
 
     hints = calloc(1, sizeof(struct addrinfo));
     if (NULL == hints) 
@@ -98,7 +131,6 @@ int main(int argc, char *argv[])
     hints->ai_socktype = SOCK_STREAM; 
     hints->ai_flags = AI_PASSIVE; 
 
-   
     if(0 > snprintf(get_addr_port_str, PORT_STR_BUFFER, "%d", options->port))
     {
         syslog_write(log_file, ERROR, "int to str conversion failed\n");
@@ -112,7 +144,7 @@ int main(int argc, char *argv[])
         goto cleanup;
     }
 
-    server_socket_fd = socket(getaddr_res->ai_family,getaddr_res->ai_socktype,getaddr_res->ai_protocol);
+    server_socket_fd = socket(getaddr_res->ai_family, getaddr_res->ai_socktype, getaddr_res->ai_protocol);
     if (SOCK_ASSIGN_ERR == server_socket_fd)
     {
         syslog_write(log_file, ERROR, "Failed to create socket");
@@ -136,37 +168,133 @@ int main(int argc, char *argv[])
         syslog_write(log_file, ERROR, "Failed to listen on socket");
         goto cleanup;
     }
+    
+    server_state->server_socket_fd = server_socket_fd;
+    
+    server_state->incoming_data_buffer = calloc(1, BUFFER_SIZE);
+    if (NULL == server_state->incoming_data_buffer) 
+    {
+        syslog_write(log_file, ERROR, "Failed to allocate incoming data buffer");
+        goto cleanup; 
+    }
 
+    /* Allocate poll file descriptors array */
+    server_state->poll_fds_array = calloc(NUM_OF_POLL_FDS, sizeof(struct pollfd));
+    if (NULL == server_state->poll_fds_array)
+    {
+        syslog_write(log_file, ERROR, "Poll file descriptors failed to allocate");
+        goto cleanup;
+    }
+
+    /* Initialize the first poll fd with server socket */
+    server_state->poll_fds_array[0].fd = server_state->server_socket_fd;
+    server_state->poll_fds_array[0].events = POLLIN;
+    server_state->active_fds = 1;
+    
+    char log_msg[128];
+    snprintf(log_msg, sizeof(log_msg), "Server listening on port %d", options->port);
+    syslog_write(log_file, INFO, log_msg);
+    
+    result = true;
+    
+cleanup:
+    if (NULL != hints) 
+    {
+        free(hints);
+        hints = NULL;
+    }
+    
+    if (NULL != get_addr_port_str) 
+    {
+        free(get_addr_port_str);
+        get_addr_port_str = NULL;
+    }
+    
+    if (NULL != getaddr_res) 
+    {
+        freeaddrinfo(getaddr_res);
+        getaddr_res = NULL;
+    }
+    
+    if (!result) 
+    {
+        if (SOCK_ASSIGN_ERR != server_socket_fd) 
+        {
+            close(server_socket_fd);
+        }
+        
+        if (NULL != server_state->incoming_data_buffer)
+        {
+            free(server_state->incoming_data_buffer);
+            server_state->incoming_data_buffer = NULL;
+        }
+        
+        if (NULL != server_state->poll_fds_array)
+        {
+            free(server_state->poll_fds_array);
+            server_state->poll_fds_array = NULL;
+        }
+    }
+    
+    return result;
+}
+
+int main(int argc, char *argv[])
+{
+    char *incoming_data_buffer = NULL;
+    struct pollfd *poll_fds_array = NULL;
     struct sigaction sig_a = {0};
+
+    cmd_line_options_t * options = calloc(1, sizeof(cmd_line_options_t));
+    if (NULL == options) 
+    {
+        fprintf(stderr, "Command line options memory allocation failed\n");
+        return EXIT_FAILURE;
+    }
+
+    int options_result = validate_and_set_options(argc, argv, options);
+
+    if (CMD_LINE_OPTS_FAILURE == options_result)
+    {
+        fprintf(stderr, "Command line opt validation failed\n");
+        goto cleanup;
+    }
+    
+    if (HELP_OPTION == options_result)
+    {
+        cleanup_options(options);
+        free(options);
+        options = NULL;
+        return EXIT_SUCCESS;
+    }
+    
+    server_state_t * server_state = server_initialize(options);
+
+    if (NULL == server_state)
+    {
+        fprintf(stderr, "Server subsystems failed to initialize\n");
+        return EXIT_FAILURE;
+    }
+
+    FILE * log_file = server_state->log_file;
+
+    if (!setup_network_state(server_state, options))
+    {
+        syslog_write(log_file, ERROR, "Failed to set up network state");
+        goto cleanup;
+    }
+
+    serv_running = 1;
     sig_a.sa_handler = sigint_received;
     if (SIGACTION_ERR == (sigaction(SIGINT, &sig_a, NULL))) 
     {
         syslog_write(log_file, ERROR, "Failed to register SIGINT handler");
         goto cleanup;
     }
-    
-    incoming_data_buffer = calloc(1, BUFFER_SIZE);
-    if (NULL == incoming_data_buffer) 
-    {
-        syslog_write(log_file, ERROR, "Failed to allocate incoming data buffer");
-        goto cleanup; 
-    }
-
-    poll_fds_array = calloc(NUM_OF_POLL_FDS, sizeof(struct pollfd));
-    if (NULL == poll_fds_array)
-    {
-        syslog_write(log_file,ERROR, "Poll file descriptors failed to allocate");
-        goto cleanup;
-    }
-
-    int active_fds = 0;
-    poll_fds_array[0].fd = server_socket_fd;
-    poll_fds_array[0].events = POLLIN;
-    active_fds = 1;
 
     while(serv_running)
     {
-        int poll_count = poll(poll_fds_array, active_fds, WAIT_INDEF);
+        int poll_count = poll(server_state->poll_fds_array, server_state->active_fds, WAIT_INDEF);
 
         // Why: To make sure that poll_count didn't error and more specifically
         // was the error from a signal received not the poll function. If so it'll continue
@@ -196,7 +324,7 @@ int main(int argc, char *argv[])
                 // for it to clear out of the queue so when poll runs again we don't get the same
                 // connection that's in the queue. Also it's best practice for showing a rejected 
                 // by doing this. We create a temp_fd to quickly do this "reject a connection."
-                int temp_fd = accept(server_socket_fd, (struct sockaddr*)&client_addr, &client_len);
+                int temp_fd = accept(server_state->server_socket_fd, (struct sockaddr*)&client_addr, &client_len);
                 if (0 <= temp_fd) 
                 {
                     close(temp_fd);
@@ -204,7 +332,7 @@ int main(int argc, char *argv[])
                 continue;
             }
             
-            int client_fd = accept(server_socket_fd, (struct sockaddr*)&client_addr, &client_len);
+            int client_fd = accept(server_state->server_socket_fd, (struct sockaddr*)&client_addr, &client_len);
             if (0 > client_fd) 
             {
                 syslog_write(log_file, ERROR, "Failed to accept() client connection");
@@ -269,7 +397,7 @@ int main(int argc, char *argv[])
     incoming_data_buffer = NULL;
     free(poll_fds_array);
     poll_fds_array = NULL;
-    close(server_socket_fd);
+    close(server_state->server_socket_fd);
     freeaddrinfo(getaddr_res);
     getaddr_res = NULL;
     cleanup_options(options);
