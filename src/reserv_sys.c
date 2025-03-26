@@ -1,10 +1,10 @@
-
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include <signal.h>
+#include <string.h>
 
 #include "cmd_line_opts.h"
 #include "user_db.h"
@@ -12,15 +12,24 @@
 
 #define USERNAME_MAX_LEN (64)
 #define DAYS_IN_YEAR (365)
-#define SECONDS_PER_DAY (86400)
+#define SECONDS_PER_DAY (86400L) 
 #define HOUR_DIV (100)
 #define MIDNIGHT (2400)
+#define LOG_MSG_BUFFER (100)
+#define YEAR_BASE (1900)
+#define YEAR_MIN (2000)
+#define YEAR_MAX (3000)
+#define MONTH_MAX (12)
+#define DAY_MAX (31)
+#define DATE_YEAR_FACTOR (10000)
+#define DATE_MONTH_FACTOR (100)
+#define NOON_HOUR (12)
 
 typedef struct 
 {
     char username[USERNAME_MAX_LEN];
     uint32_t session_id;
-}reservation_info_t;
+} reservation_info_t;
 
 typedef struct 
 {
@@ -28,7 +37,7 @@ typedef struct
     reservation_info_t * tables;
     int num_of_tables;
     int tables_available;
-}time_slot_t;
+} time_slot_t;
 
 typedef struct 
 {
@@ -36,7 +45,7 @@ typedef struct
     time_slot_t * hour_time_slots;
     int num_of_slots;
     int time_slots_available;
-}date_slot_t;
+} date_slot_t;
 
 typedef struct 
 {
@@ -46,11 +55,22 @@ typedef struct
     int closing_hour;
     int time_slots_per_day;
     pthread_mutex_t reserve_lock;
-}reservation_system_t;
+} reservation_system_t;
 
 static FILE* log_file = NULL;
 static reservation_system_t* g_reservation_system = NULL;
 static user_db_t* g_user_database = NULL;
+
+static int find_date_index(int date);
+static int get_yyyymmdd_format(int day_index);
+
+typedef struct 
+{
+    int date;
+    int time;
+} reservation_time_t;
+
+bool reserv_sys_make_reservation(uint32_t session_id, reservation_time_t reservation_time);
 
 static int calculate_num_time_slots(int opening_hour, int closing_hour)
 {
@@ -60,37 +80,6 @@ static int calculate_num_time_slots(int opening_hour, int closing_hour)
     }
     
     return (closing_hour - opening_hour) / HOUR_DIV;
-}
-
-static int get_date_in_yyyymmdd_format(int day_index)
-{
-    if (0 > day_index || DAYS_IN_YEAR <= day_index)
-    {
-        syslog_write(log_file, ERROR, "Invalid day index for date conversion");
-        return 0;
-    }
-
-    time_t current_time = time(NULL);
-    if ((time_t)-1 == current_time)
-    {
-        syslog_write(log_file, ERROR, "Failed to get current time");
-        return 0;
-    }
-
-    time_t future_time = current_time + (day_index * SECONDS_PER_DAY);
-    
-    struct tm *time_info = localtime(&future_time);
-    if (NULL == time_info)
-    {
-        syslog_write(log_file, ERROR, "Failed to convert time to local time");
-        return 0;
-    }
-
-    int date = (time_info->tm_year + 1900) * 10000 + 
-               (time_info->tm_mon + 1) * 100 + 
-               time_info->tm_mday;
-    
-    return date;
 }
 
 static int find_date_index(int date)
@@ -115,8 +104,8 @@ static int find_date_index(int date)
         return -1;
     }
 
-    int current_date = (current_tm->tm_year + 1900) * 10000 + 
-                       (current_tm->tm_mon + 1) * 100 + 
+    int current_date = (current_tm->tm_year + YEAR_BASE) * DATE_YEAR_FACTOR + 
+                       (current_tm->tm_mon + 1) * DATE_MONTH_FACTOR + 
                        current_tm->tm_mday;
 
     if (date < current_date)
@@ -125,15 +114,15 @@ static int find_date_index(int date)
         return -1;
     }
 
-    int year = date / 10000;
-    int month = (date / 100) % 100;
-    int day = date % 100;
+    int year = date / DATE_YEAR_FACTOR;
+    int month = (date / DATE_MONTH_FACTOR) % DATE_MONTH_FACTOR;
+    int day = date % DATE_MONTH_FACTOR;
 
     struct tm target_tm = {0};
-    target_tm.tm_year = year - 1900;
+    target_tm.tm_year = year - YEAR_BASE;
     target_tm.tm_mon = month - 1;
     target_tm.tm_mday = day;
-    target_tm.tm_hour = 12; 
+    target_tm.tm_hour = NOON_HOUR; 
     
 
     time_t target_time = mktime(&target_tm);
@@ -154,6 +143,74 @@ static int find_date_index(int date)
     return day_diff;
 }
 
+static int get_yyyymmdd_format(int day_index)
+{
+    if (0 > day_index || DAYS_IN_YEAR <= day_index)
+    {
+        syslog_write(log_file, ERROR, "Invalid day index for date conversion");
+        return 0;
+    }
+
+    time_t current_time = time(NULL);
+    if ((time_t)-1 == current_time)
+    {
+        syslog_write(log_file, ERROR, "Failed to get current time");
+        return 0;
+    }
+
+    time_t future_time = current_time + ((long)day_index * SECONDS_PER_DAY);
+    
+    struct tm *time_info = localtime(&future_time);
+    if (NULL == time_info)
+    {
+        syslog_write(log_file, ERROR, "Failed to convert time to local time");
+        return 0;
+    }
+
+    int date = (time_info->tm_year + YEAR_BASE) * DATE_YEAR_FACTOR + 
+               (time_info->tm_mon + 1) * DATE_MONTH_FACTOR + 
+               time_info->tm_mday;
+    
+    return date;
+}
+
+static date_slot_t *find_date_slot(int date_yyyymmdd)
+{
+    if (NULL == g_reservation_system)
+    {
+        syslog_write(log_file, ERROR, "Reservation system not initialized");
+        return NULL;
+    }
+
+    int date_index = find_date_index(date_yyyymmdd);
+    if (0 > date_index || DAYS_IN_YEAR <= date_index)
+    {
+        syslog_write(log_file, ERROR, "Date index out of range");
+        return NULL;
+    }
+
+    return &g_reservation_system->year_of_dates[date_index];
+}
+
+static time_slot_t *find_time_slot(date_slot_t *date_slot, int time)
+{
+    if (NULL == date_slot || NULL == date_slot->hour_time_slots)
+    {
+        syslog_write(log_file, ERROR, "Invalid date slot for finding time");
+        return NULL;
+    }
+
+    int slot_index = (time - g_reservation_system->opening_hour) / HOUR_DIV;
+    
+    if (slot_index < 0 || slot_index >= date_slot->num_of_slots)
+    {
+        syslog_write(log_file, ERROR, "Time slot index out of range");
+        return NULL;
+    }
+
+    return &date_slot->hour_time_slots[slot_index];
+}
+
 bool is_date_valid(int date)
 {
     if (0 >= date)
@@ -161,11 +218,11 @@ bool is_date_valid(int date)
         return false;
     }
 
-    int year = date / 10000;
-    int month = (date / 100) % 100;
-    int day = date % 100;
+    int year = date / DATE_YEAR_FACTOR;
+    int month = (date / DATE_MONTH_FACTOR) % DATE_MONTH_FACTOR;
+    int day = date % DATE_MONTH_FACTOR;
     
-    if (2000 > year || 3000 < year || 1 > month || 12 < month || 1 > day || 31 < day)
+    if (YEAR_MIN > year || YEAR_MAX < year || 1 > month || MONTH_MAX < month || 1 > day || DAY_MAX < day)
     {
         return false;
     }
@@ -206,7 +263,7 @@ void reserv_sys_cleanup(void)
 }
 
 bool reserv_sys_init(user_db_t * user_database, cmd_line_options_t * userdb_configs,
-    volatile sig_atomic_t *serv_running)
+    const volatile sig_atomic_t *serv_running) 
 {
     if (NULL == user_database || NULL == userdb_configs || NULL == serv_running)
     {
@@ -251,7 +308,7 @@ bool reserv_sys_init(user_db_t * user_database, cmd_line_options_t * userdb_conf
 
     for (int date_idx = 0; date_idx < DAYS_IN_YEAR; date_idx++)
     {
-        int date_in_yyyymmdd = get_date_in_yyyymmdd_format(date_idx);
+        int date_in_yyyymmdd = get_yyyymmdd_format(date_idx);
         if (0 == date_in_yyyymmdd)
         {
             syslog_write(log_file, ERROR, "Failed to calculate date in YYYYMMDD format");
@@ -299,4 +356,96 @@ bool reserv_sys_init(user_db_t * user_database, cmd_line_options_t * userdb_conf
 
     syslog_write(log_file, INFO, "Reservation system initialized successfully");
     return true;
+}
+
+bool reserv_sys_make_reservation(uint32_t session_id, reservation_time_t reservation_time)
+{
+    if (NULL == g_reservation_system || NULL == g_user_database)
+    {
+        syslog_write(log_file, ERROR, "Reservation system not initialized");
+        return false;
+    }
+
+    if (0 == session_id)
+    {
+        syslog_write(log_file, ERROR, "Invalid session ID for reservation");
+        return false;
+    }
+
+    char username[USERNAME_MAX_LEN];
+    if (!user_db_get_username(g_user_database, session_id, username, USERNAME_MAX_LEN))
+    {
+        syslog_write(log_file, ERROR, "Failed to get username for session");
+        return false;
+    }
+
+    if (0 != pthread_mutex_lock(&g_reservation_system->reserve_lock))
+    {
+        syslog_write(log_file, ERROR, "Failed to lock reservation mutex");
+        return false;
+    }
+
+    bool result = false;
+    date_slot_t *date_slot = find_date_slot(reservation_time.date);
+    if (NULL == date_slot)
+    {
+        syslog_write(log_file, ERROR, "Invalid date for reservation");
+        goto cleanup;
+    }
+
+    time_slot_t *time_slot = find_time_slot(date_slot, reservation_time.time);
+    if (NULL == time_slot)
+    {
+        syslog_write(log_file, ERROR, "Invalid time for reservation");
+        goto cleanup;
+    }
+
+    if (0 >= time_slot->tables_available)
+    {
+        syslog_write(log_file, ERROR, "No tables available for reservation");
+        goto cleanup;
+    }
+
+    for (int idx = 0; idx < time_slot->num_of_tables; idx++)
+    {
+        if (session_id == time_slot->tables[idx].session_id)
+        {
+            syslog_write(log_file, ERROR, "User already has a reservation at this time");
+            goto cleanup;
+        }
+    }
+
+    for (int jdx = 0; jdx < time_slot->num_of_tables; jdx++)
+    {
+        if (0 == time_slot->tables[jdx].session_id)
+        {
+            time_slot->tables[jdx].session_id = session_id;
+            strncpy(time_slot->tables[jdx].username, username, USERNAME_MAX_LEN - 1);
+            time_slot->tables[jdx].username[USERNAME_MAX_LEN - 1] = '\0';
+            
+            time_slot->tables_available--;
+            date_slot->time_slots_available = 
+                (0 == time_slot->tables_available) ? 
+                date_slot->time_slots_available - 1 : 
+                date_slot->time_slots_available;
+
+            char log_msg[LOG_MSG_BUFFER];
+            snprintf(log_msg, sizeof(log_msg), 
+                    "Reservation made: user=%s, date=%d, time=%d, table=%d", 
+                    username, reservation_time.date, reservation_time.time, jdx);
+            syslog_write(log_file, INFO, log_msg);
+            
+            result = true;
+            break;
+        }
+    }
+
+cleanup:
+    if (0 != pthread_mutex_unlock(&g_reservation_system->reserve_lock))
+    {
+        syslog_write(log_file, ERROR, "Failed to unlock reservation mutex");
+        return false;
+    }
+    
+    return result;
 }
