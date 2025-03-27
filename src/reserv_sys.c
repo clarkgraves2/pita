@@ -47,7 +47,7 @@ typedef struct
     int time_slots_available;
 } date_slot_t;
 
-typedef struct 
+struct reservation_system
 {
     date_slot_t * year_of_dates;
     int num_of_tables;
@@ -55,7 +55,7 @@ typedef struct
     int closing_hour;
     int time_slots_per_day;
     pthread_mutex_t reserve_lock;
-} reservation_system_t;
+};
 
 static FILE* log_file = NULL;
 static reservation_system_t* g_reservation_system = NULL;
@@ -230,80 +230,82 @@ bool is_date_valid(int date)
     return (0 <= find_date_index(date));
 }
 
-void reserv_sys_cleanup(void) 
+void reserv_sys_cleanup(reservation_system_t* reservation_system) 
 {
-    if (NULL == g_reservation_system) 
+    if (NULL == reservation_system) 
     {
         return;
     }
     
-    if (NULL != g_reservation_system->year_of_dates) 
+    if (NULL != reservation_system->year_of_dates) 
     {
         for (int idx = 0; idx < DAYS_IN_YEAR; idx++) 
         {
-            if (NULL != g_reservation_system->year_of_dates[idx].hour_time_slots) 
+            if (NULL != reservation_system->year_of_dates[idx].hour_time_slots) 
             {
-                for (int jdx = 0; jdx < g_reservation_system->time_slots_per_day; jdx++) 
+                for (int jdx = 0; jdx < reservation_system->time_slots_per_day; jdx++) 
                 {
-                    if (NULL != g_reservation_system->year_of_dates[idx].hour_time_slots[jdx].tables) 
+                    if (NULL != reservation_system->year_of_dates[idx].hour_time_slots[jdx].tables) 
                     {
-                        free(g_reservation_system->year_of_dates[idx].hour_time_slots[jdx].tables);
+                        free(reservation_system->year_of_dates[idx].hour_time_slots[jdx].tables);
                     }
                 }
-                free(g_reservation_system->year_of_dates[idx].hour_time_slots);
+                free(reservation_system->year_of_dates[idx].hour_time_slots);
             }
         }
-        free(g_reservation_system->year_of_dates);
+        free(reservation_system->year_of_dates);
     }
     
-    pthread_mutex_destroy(&g_reservation_system->reserve_lock);
+    pthread_mutex_destroy(&reservation_system->reserve_lock);
     
-    free(g_reservation_system);
-    g_reservation_system = NULL;
+    free(reservation_system);
 }
 
-bool reserv_sys_init(user_db_t * user_database, cmd_line_options_t * userdb_configs,
-    const volatile sig_atomic_t *serv_running) 
+reservation_system_t* reserv_sys_init(server_state_t* server_state)
 {
-    if (NULL == user_database || NULL == userdb_configs || NULL == serv_running)
+    if (NULL == server_state)
     {
-        syslog_write(userdb_configs->log_file, ERROR, "Init parameters fo reserv system failed");
-        return false;
+        return NULL;
     }
 
-    log_file = userdb_configs->log_file;
-    g_user_database = user_database;
+    FILE* log_file = server_state->log_file;
+    user_db_t* user_database = server_state->user_database;
+    cmd_line_options_t* options = server_state->options;
+    
+    if (NULL == user_database || NULL == options)
+    {
+        syslog_write(log_file, ERROR, "Init parameters for reserv system failed");
+        return NULL;
+    }
 
-    g_reservation_system = calloc(1, sizeof(reservation_system_t));
-    if (NULL == g_reservation_system)
+    reservation_system_t* reservation_system = calloc(1, sizeof(reservation_system_t));
+    if (NULL == reservation_system)
     {
         syslog_write(log_file, ERROR, "Reservation system failed to allocate");
-        return false;
+        return NULL;
     }
 
-    g_reservation_system->num_of_tables = userdb_configs->num_tables;
-    g_reservation_system->opening_hour = userdb_configs->opening_hour;
-    g_reservation_system->closing_hour = userdb_configs->closing_hour;
-    g_reservation_system->time_slots_per_day = calculate_num_time_slots(
-        g_reservation_system->opening_hour, 
-        g_reservation_system->closing_hour);
+    reservation_system->num_of_tables = options->num_tables;
+    reservation_system->opening_hour = options->opening_hour;
+    reservation_system->closing_hour = options->closing_hour;
+    reservation_system->time_slots_per_day = calculate_num_time_slots(
+        reservation_system->opening_hour, 
+        reservation_system->closing_hour);
         
-    if (0 != pthread_mutex_init(&g_reservation_system->reserve_lock, NULL))
+    if (0 != pthread_mutex_init(&reservation_system->reserve_lock, NULL))
     {
         syslog_write(log_file, ERROR, "Failed to initialize reservation system mutex");
-        free(g_reservation_system);
-        g_reservation_system = NULL;
-        return false;
+        free(reservation_system);
+        return NULL;
     }
 
-    g_reservation_system->year_of_dates = calloc(DAYS_IN_YEAR, sizeof(date_slot_t));
-    if (NULL == g_reservation_system->year_of_dates)
+    reservation_system->year_of_dates = calloc(DAYS_IN_YEAR, sizeof(date_slot_t));
+    if (NULL == reservation_system->year_of_dates)
     {
         syslog_write(log_file, ERROR, "Failed to allocate memory for year of dates");
-        pthread_mutex_destroy(&g_reservation_system->reserve_lock);
-        free(g_reservation_system);
-        g_reservation_system = NULL;
-        return false;
+        pthread_mutex_destroy(&reservation_system->reserve_lock);
+        free(reservation_system);
+        return NULL;
     }
 
     for (int date_idx = 0; date_idx < DAYS_IN_YEAR; date_idx++)
@@ -312,41 +314,41 @@ bool reserv_sys_init(user_db_t * user_database, cmd_line_options_t * userdb_conf
         if (0 == date_in_yyyymmdd)
         {
             syslog_write(log_file, ERROR, "Failed to calculate date in YYYYMMDD format");
-            reserv_sys_cleanup();
-            return false;
+            reserv_sys_cleanup(reservation_system);
+            return NULL;
         }
         
-        g_reservation_system->year_of_dates[date_idx].date = date_in_yyyymmdd;
-        g_reservation_system->year_of_dates[date_idx].num_of_slots = g_reservation_system->time_slots_per_day;
-        g_reservation_system->year_of_dates[date_idx].time_slots_available = g_reservation_system->time_slots_per_day;
+        reservation_system->year_of_dates[date_idx].date = date_in_yyyymmdd;
+        reservation_system->year_of_dates[date_idx].num_of_slots = reservation_system->time_slots_per_day;
+        reservation_system->year_of_dates[date_idx].time_slots_available = reservation_system->time_slots_per_day;
         
-        g_reservation_system->year_of_dates[date_idx].hour_time_slots = 
-            calloc(g_reservation_system->time_slots_per_day, sizeof(time_slot_t));
+        reservation_system->year_of_dates[date_idx].hour_time_slots = 
+            calloc(reservation_system->time_slots_per_day, sizeof(time_slot_t));
         
-        if (NULL == g_reservation_system->year_of_dates[date_idx].hour_time_slots)
+        if (NULL == reservation_system->year_of_dates[date_idx].hour_time_slots)
         {
             syslog_write(log_file, ERROR, "Failed to allocate memory for time slots");
-            reserv_sys_cleanup();
-            return false;
+            reserv_sys_cleanup(reservation_system);
+            return NULL;
         }
 
-        for (int slot_idx = 0; slot_idx < g_reservation_system->time_slots_per_day; slot_idx++)
+        for (int slot_idx = 0; slot_idx < reservation_system->time_slots_per_day; slot_idx++)
         {
-            time_slot_t *current_slot = &g_reservation_system->year_of_dates[date_idx].hour_time_slots[slot_idx];
+            time_slot_t *current_slot = &reservation_system->year_of_dates[date_idx].hour_time_slots[slot_idx];
             
-            current_slot->hour = g_reservation_system->opening_hour + (slot_idx * HOUR_DIV);
-            current_slot->num_of_tables = g_reservation_system->num_of_tables;
-            current_slot->tables_available = g_reservation_system->num_of_tables;
+            current_slot->hour = reservation_system->opening_hour + (slot_idx * HOUR_DIV);
+            current_slot->num_of_tables = reservation_system->num_of_tables;
+            current_slot->tables_available = reservation_system->num_of_tables;
             
-            current_slot->tables = calloc(g_reservation_system->num_of_tables, sizeof(reservation_info_t));
+            current_slot->tables = calloc(reservation_system->num_of_tables, sizeof(reservation_info_t));
             if (NULL == current_slot->tables)
             {
                 syslog_write(log_file, ERROR, "Failed to allocate memory for tables");
-                reserv_sys_cleanup();
-                return false;
+                reserv_sys_cleanup(reservation_system);
+                return NULL;
             }
             
-            for (int table_idx = 0; table_idx < g_reservation_system->num_of_tables; table_idx++)
+            for (int table_idx = 0; table_idx < reservation_system->num_of_tables; table_idx++)
             {
                 current_slot->tables[table_idx].session_id = 0;
                 current_slot->tables[table_idx].username[0] = '\0';
@@ -354,8 +356,10 @@ bool reserv_sys_init(user_db_t * user_database, cmd_line_options_t * userdb_conf
         }
     }
 
+    server_state->reservation_system = reservation_system;
+    
     syslog_write(log_file, INFO, "Reservation system initialized successfully");
-    return true;
+    return reservation_system;
 }
 
 bool reserv_sys_make_reservation(uint32_t session_id, reservation_time_t reservation_time)

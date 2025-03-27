@@ -10,8 +10,6 @@
 #include "cmd_line_opts.h"
 #include "syslog.h"
 
-typedef struct user_db user_db_t;
-
 #define USERNAME_MAX_LEN (64)
 #define PASSWORD_MAX_LEN (128)
 
@@ -34,7 +32,7 @@ bool user_db_update_activity(user_db_t *user_database, uint32_t session_id);
 
 bool user_db_is_admin(user_db_t *user_database, uint32_t session_id);
 
-bool user_db_init(server_state_t * server_configs);
+user_db_t * user_db_init(server_state_t * server_configs);
 
 bool user_db_cleanup(user_db_t *user_database);
 

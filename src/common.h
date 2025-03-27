@@ -26,9 +26,7 @@ typedef struct
     struct cmd_line_options *options;
     user_db_t *user_database;
     reservation_system_t *reservation_system;
-
-    volatile sig_atomic_t running;
-
+    
 } server_state_t;
 
 #endif /* COMMON_H */

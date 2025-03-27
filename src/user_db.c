@@ -570,15 +570,24 @@ bool user_db_is_admin(user_db_t *user_database, uint32_t session_id)
     return is_admin;
 }
 
-bool user_db_init(server_state_t * server_configs)
+user_db_t * user_db_init(server_state_t* server_configs) 
 {
-    if (NULL == server_configs)
+    if (NULL == server_configs) 
     {
-        return false;
+        return NULL;
+    }
+    
+    log_file = server_configs->log_file;
+    
+    user_db_t* user_database = calloc(1, sizeof(struct user_db));
+    if (NULL == user_database) 
+    {
+        syslog_write(log_file, ERROR, "Failed to allocate memory for user database");
+        return NULL;
     }
 
     log_file = server_configs->log_file;
-    user_db_t * user_database = server_configs->user_database;
+    server_configs->user_database = user_database;
     user_database->user_count = 0;
     user_database->users = calloc(MAX_USERS, sizeof(user_t));
     if (NULL == user_database->users)
@@ -613,7 +622,7 @@ bool user_db_init(server_state_t * server_configs)
         return false;
     }
 
-    return true;
+    return user_database;
 }
 
 bool user_db_cleanup(user_db_t *user_database)
