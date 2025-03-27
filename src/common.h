@@ -7,13 +7,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "cmd_line_opts.h" 
+
 typedef struct user_db user_db_t;
 typedef struct reservation_system reservation_system_t;
-struct cmd_line_options;
 
-/**
- * Server state structure to centralize all server components
- */
 typedef struct 
 {
     FILE *log_file;
@@ -23,7 +21,7 @@ typedef struct
     int active_fds;
     char *incoming_data_buffer;
 
-    struct cmd_line_options *options;
+    cmd_line_options_t *options; 
     user_db_t *user_database;
     reservation_system_t *reservation_system;
     
